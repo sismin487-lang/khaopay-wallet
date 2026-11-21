@@ -35,8 +35,41 @@ setInterval(() => {
   }
 }, 60 * 1000).unref();
 
-async function ensureSchemaCompatibility() {
+async function initDatabase() {
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      phone_e164 TEXT UNIQUE NOT NULL,
+      phone_country TEXT NOT NULL CHECK (phone_country IN ('TH', 'MM')),
+      pin_hash TEXT NOT NULL,
+      kyc_status TEXT NOT NULL DEFAULT 'UNVERIFIED' CHECK (kyc_status IN ('UNVERIFIED', 'PENDING', 'VERIFIED', 'REJECTED')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS wallets (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      currency TEXT NOT NULL CHECK (currency IN ('MMK', 'THB')),
+      balance NUMERIC(18, 2) NOT NULL DEFAULT 0 CHECK (balance >= 0),
+      UNIQUE (user_id, currency)
+    );
+
+    CREATE TABLE IF NOT EXISTS kyc_submissions (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      phone_e164 TEXT,
+      id_type TEXT NOT NULL DEFAULT 'MYANMAR_NRC',
+      nrc_normalized TEXT UNIQUE NOT NULL,
+      full_name TEXT NOT NULL,
+      front_image_url TEXT NOT NULL,
+      back_image_url TEXT NOT NULL,
+      selfie_image_url TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'VERIFIED', 'REJECTED')),
+      reject_reason TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      reviewed_at TIMESTAMPTZ
+    );
+
     ALTER TABLE kyc_submissions ADD COLUMN IF NOT EXISTS phone_e164 TEXT;
     ALTER TABLE kyc_submissions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
 
@@ -57,14 +90,27 @@ async function ensureSchemaCompatibility() {
       reviewed_at TIMESTAMPTZ
     );
 
+    CREATE TABLE IF NOT EXISTS transactions (
+      id SERIAL PRIMARY KEY,
+      sender_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      receiver_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      tx_type TEXT NOT NULL,
+      currency TEXT NOT NULL CHECK (currency IN ('MMK', 'THB')),
+      amount NUMERIC(18, 2) NOT NULL CHECK (amount > 0),
+      note TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE INDEX IF NOT EXISTS idx_cash_requests_user_id ON cash_requests(user_id);
     CREATE INDEX IF NOT EXISTS idx_cash_requests_status ON cash_requests(status);
     CREATE INDEX IF NOT EXISTS idx_cash_requests_phone ON cash_requests(phone_e164);
+    CREATE INDEX IF NOT EXISTS idx_transactions_sender ON transactions(sender_user_id);
+    CREATE INDEX IF NOT EXISTS idx_transactions_receiver ON transactions(receiver_user_id);
   `);
 }
 
-ensureSchemaCompatibility().catch((err) => {
-  console.error('Schema compatibility check error:', err.message);
+initDatabase().catch((err) => {
+  console.error('Database init error:', err.message);
 });
 
 function signToken(payload) {
@@ -290,7 +336,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
         : `${phoneE164} အတွက် OTP ထုတ်ပေးပြီးပါပြီ (OTP Gateway မချိတ်ရသေး၍ Test OTP: ${code})`
     };
 
-    if (!providerRes.delivered && process.env.NODE_ENV !== 'production') {
+    if (!providerRes.delivered) {
       payload.devOtp = code;
     }
 
@@ -310,6 +356,7 @@ app.post('/api/auth/register-or-login', async (req, res) => {
   let userId;
   let txOpen = false;
   try {
+    await initDatabase();
     const phoneE164 = normalizePhone(countryCode, phone);
     const otpRec = otpStore.get(phoneE164);
 
