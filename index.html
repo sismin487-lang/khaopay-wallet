@@ -7,7 +7,7 @@
   <style>
     * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
     body { margin: 0; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; padding: 16px; }
-    .app { width: 100%; max-width: 450px; background: #1e293b; border-radius: 20px; padding: 20px; box-shadow: 0 20px 40px rgba(0,0,0,.45); }
+    .app { width: 100%; max-width: 460px; background: #1e293b; border-radius: 20px; padding: 20px; box-shadow: 0 20px 40px rgba(0,0,0,.45); }
     h1, h2, h3, h4 { margin: 0 0 12px; }
     .sub { color: #94a3b8; font-size: 13px; margin-bottom: 14px; }
     .card { background: #0f172a; border: 1px solid #334155; border-radius: 14px; padding: 14px; margin-bottom: 14px; }
@@ -22,17 +22,19 @@
     .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
     .UNVERIFIED { background: #475569; }
     .PENDING { background: #ca8a04; color: #000; }
-    .VERIFIED { background: #16a34a; }
-    .REJECTED { background: #dc2626; }
+    .VERIFIED, .APPROVED { background: #16a34a; color: #fff; }
+    .REJECTED { background: #dc2626; color: #fff; }
     .balances { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .bal-box { background: linear-gradient(135deg, #1d4ed8, #0f172a); padding: 12px; border-radius: 12px; border: 1px solid #3b82f6; }
     .bal-amt { font-size: 18px; font-weight: 700; margin-top: 4px; }
     .tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 14px; }
     .tabs button { margin: 0; padding: 8px 3px; font-size: 11px; background: #0f172a; border: 1px solid #334155; }
     .tabs button.active { background: #2563eb; border-color: #2563eb; }
-    .tx-item { border-bottom: 1px solid #1e293b; padding: 8px 0; font-size: 13px; }
-    .msg { padding: 10px; border-radius: 10px; background: #172554; border: 1px solid #3b82f6; font-size: 13px; margin-bottom: 12px; }
+    .tx-item { border-bottom: 1px solid #1e293b; padding: 10px 0; font-size: 13px; }
+    .tx-item:last-child { border-bottom: none; }
+    .msg { padding: 10px 12px; border-radius: 10px; background: #172554; border: 1px solid #3b82f6; font-size: 13px; margin-bottom: 12px; line-height: 1.45; }
     .rate-box { background: #1e293b; border: 1px dashed #64748b; border-radius: 10px; padding: 10px; font-size: 12px; color: #e2e8f0; margin-top: 8px; }
+    .hint-box { background: #1e293b; border-left: 3px solid #3b82f6; padding: 9px 11px; border-radius: 8px; font-size: 12px; color: #cbd5e1; margin-bottom: 10px; line-height: 1.45; }
     .hidden { display: none; }
   </style>
 </head>
@@ -105,30 +107,39 @@
     </div>
 
     <div id="view-home" class="card">
-      <h3>လတ်တလော လှုပ်ရှားမှုများ</h3>
+      <h3>Pending ငွေသွင်း / ငွေထုတ် Request များ</h3>
+      <div id="pendingCashList"><div class="sub">Pending Request မရှိပါ။</div></div>
+
+      <h3 style="margin-top:14px;">လတ်တလော လှုပ်ရှားမှုများ</h3>
       <div id="txList"><div class="sub">မှတ်တမ်း မရှိသေးပါ။</div></div>
-      <button class="secondary" onclick="openAdminModal()">Admin စစ်ဆေးရန် (KYC Approve)</button>
+
+      <button class="secondary" onclick="openAdminModal()">Admin စစ်ဆေးရန် (KYC & KPay/Wave Approve)</button>
     </div>
 
     <div id="view-cash" class="card hidden">
-      <h3>KPay / WavePay တိုက်ရိုက် သွင်း • လွှဲ/ထုတ်</h3>
+      <h3>KPay / WavePay • ငွေသွင်း & ငွေထုတ်</h3>
+      <div id="cashAccountHint" class="hint-box">
+        ဤအကောင့် ဖွင့်ထားသည့် ဖုန်းနံပါတ်အတိုင်း KYC VERIFIED ဖြစ်ပြီးမှ KPay / WavePay Request တင်နိုင်ပါသည်။
+      </div>
       <label>လုပ်ဆောင်ချက်</label>
       <select id="cashType">
-        <option value="CASH_IN">KPay / WavePay မှ ငွေသွင်းရန် (Cash-In)</option>
-        <option value="CASH_OUT">KPay / WavePay သို့ တိုက်ရိုက်ငွေလွှဲ/ထုတ်ရန် (Direct Transfer)</option>
+        <option value="CASH_IN">KPay / WavePay မှ ငွေသွင်းရန် (Cash-In Request)</option>
+        <option value="CASH_OUT">KPay / WavePay သို့ ငွေထုတ်ရန် (Cash-Out Request)</option>
       </select>
       <label>E-Wallet Channel</label>
       <select id="cashChannel">
         <option value="KPAY">KBZPay (KPay)</option>
         <option value="WAVEPAY">WavePay</option>
       </select>
-      <label>KPay / WavePay ဖုန်းနံပါတ်</label>
+      <label>အကောင့် ဖုန်းနံပါတ် (KPay / WavePay)</label>
       <input id="cashTarget" placeholder="09xxxxxxxxx" />
       <label>ငွေပမာဏ (MMK)</label>
       <input id="cashAmount" type="number" step="100" placeholder="10000" />
+      <label>Transaction ID / မှတ်ချက် (Optional)</label>
+      <input id="cashTxRef" placeholder="KPay/WavePay Txn ID" />
       <label>အတည်ပြု PIN (ဂဏန်း ၆ လုံး)</label>
       <input id="cashPin" type="password" maxlength="6" placeholder="ဂဏန်း ၆ လုံး" />
-      <button class="success" onclick="submitDirectCash()">တိုက်ရိုက် လုပ်ဆောင်မည်</button>
+      <button class="success" onclick="submitDirectCash()">Request တင်မည်</button>
     </div>
 
     <div id="view-transfer" class="card hidden">
@@ -171,7 +182,7 @@
 
     <div id="view-kyc" class="card hidden">
       <h3>မြန်မာမှတ်ပုံတင် (NRC) KYC</h3>
-      <div class="sub">ထိုင်းဆင်းကဒ်နဲ့ ဖွင့်ထားသော အကောင့်များလည်း မြန်မာမှတ်ပုံတင်ဖြင့် အတည်ပြုနိုင်ပါသည်။</div>
+      <div class="sub">ဖွင့်ထားသော ဖုန်းနံပါတ်အကောင့်ကို မြန်မာမှတ်ပုံတင်ဖြင့် အတည်ပြုနိုင်ပါသည်။</div>
       <label>မှတ်ပုံတင်ပါ အမည်အပြည့်အစုံ</label>
       <input id="kycName" placeholder="Mg Kyaw Kyaw" />
       <label>မြန်မာမှတ်ပုံတင်နံပါတ် (NRC)</label>
@@ -186,10 +197,10 @@
     </div>
 
     <div id="adminPanel" class="card hidden">
-      <h3>Admin Panel (Myanmar NRC KYC Approve)</h3>
+      <h3>Admin Panel (KYC & KPay/WavePay Approve)</h3>
       <label>Admin Secret Key</label>
       <input id="adminSecretInput" type="password" placeholder="ADMIN_SECRET ထည့်ပါ" oninput="saveAdminSecret()" />
-      <button class="secondary" onclick="loadPendingKycs()">Pending KYC ပြန်ခေါ်မည်</button>
+      <button class="secondary" onclick="loadAdminQueue()">Pending KYC & Cash Request ပြန်ခေါ်မည်</button>
       <div id="adminList" style="margin-top:10px;"></div>
       <button class="secondary" onclick="document.getElementById('adminPanel').classList.add('hidden')">ပိတ်မည်</button>
     </div>
@@ -250,17 +261,23 @@
     } catch (_) {}
   }
 
+  async function refreshUserSession() {
+    if (!authToken || !savedUserId) return;
+    const refreshed = await apiCall(`/api/wallet/${savedUserId}`);
+    currentSession = {
+      user: refreshed.user,
+      wallets: refreshed.wallets,
+      kyc: refreshed.kyc,
+      cashRequests: refreshed.cashRequests || [],
+      transactions: refreshed.transactions || []
+    };
+  }
+
   async function restoreSession() {
     await loadConfig();
     if (!authToken || !savedUserId) return;
     try {
-      const refreshed = await apiCall(`/api/wallet/${savedUserId}`);
-      currentSession = {
-        user: refreshed.user,
-        wallets: refreshed.wallets,
-        kyc: refreshed.kyc,
-        transactions: refreshed.transactions
-      };
+      await refreshUserSession();
       renderApp();
     } catch (_) {
       logout();
@@ -313,7 +330,8 @@
         user: data.user,
         wallets: data.wallets,
         kyc: data.kyc,
-        transactions: data.transactions
+        cashRequests: data.cashRequests || [],
+        transactions: data.transactions || []
       };
       document.getElementById('authPin').value = '';
       await loadConfig();
@@ -339,6 +357,14 @@
       document.getElementById('tab-' + t).classList.toggle('active', t === tab);
       document.getElementById('view-' + t).classList.toggle('hidden', t !== tab);
     });
+    if (tab === 'cash' && currentSession && currentSession.user) {
+      const targetInput = document.getElementById('cashTarget');
+      if (!targetInput.value) {
+        targetInput.value = currentSession.user.phoneE164;
+      }
+      document.getElementById('cashAccountHint').textContent =
+        `အကောင့်ဖုန်းနံပါတ်: ${currentSession.user.phoneE164} • KYC Status: ${currentSession.user.kycStatus}`;
+    }
     if (tab === 'swap') updateSwapPreview();
   }
 
@@ -357,7 +383,13 @@
         backImageUrl: imgs.back,
         selfieImageUrl: imgs.selfie
       });
-      currentSession = { user: data.user, wallets: data.wallets, kyc: data.kyc, transactions: data.transactions };
+      currentSession = {
+        user: data.user,
+        wallets: data.wallets,
+        kyc: data.kyc,
+        cashRequests: data.cashRequests || [],
+        transactions: data.transactions || []
+      };
       showMsg(data.message);
       renderApp();
     } catch (e) {
@@ -370,17 +402,26 @@
     const channel = document.getElementById('cashChannel').value;
     const targetPhone = document.getElementById('cashTarget').value.trim();
     const amount = Number(document.getElementById('cashAmount').value);
+    const txRef = document.getElementById('cashTxRef').value.trim();
     const pin = document.getElementById('cashPin').value;
 
     try {
       const data = await apiCall(
         '/api/wallet/direct-cash',
         'POST',
-        { type, channel, targetPhone, amount, pin },
+        { type, channel, targetPhone, amount, txRef, pin },
         { 'x-idempotency-key': makeIdempotencyKey('cash') }
       );
-      currentSession = { user: data.user, wallets: data.wallets, kyc: data.kyc, transactions: data.transactions };
+      currentSession = {
+        user: data.user,
+        wallets: data.wallets,
+        kyc: data.kyc,
+        cashRequests: data.cashRequests || [],
+        transactions: data.transactions || []
+      };
       document.getElementById('cashPin').value = '';
+      document.getElementById('cashAmount').value = '';
+      document.getElementById('cashTxRef').value = '';
       showMsg(data.message);
       renderApp();
     } catch (e) {
@@ -403,7 +444,13 @@
         { receiverCountryCode, receiverPhone, currency, amount, note, pin },
         { 'x-idempotency-key': makeIdempotencyKey('tx') }
       );
-      currentSession = { user: data.user, wallets: data.wallets, kyc: data.kyc, transactions: data.transactions };
+      currentSession = {
+        user: data.user,
+        wallets: data.wallets,
+        kyc: data.kyc,
+        cashRequests: data.cashRequests || [],
+        transactions: data.transactions || []
+      };
       document.getElementById('txPin').value = '';
       showMsg(data.message);
       renderApp();
@@ -435,7 +482,13 @@
         { pair, amount, pin },
         { 'x-idempotency-key': makeIdempotencyKey('swap') }
       );
-      currentSession = { user: data.user, wallets: data.wallets, kyc: data.kyc, transactions: data.transactions };
+      currentSession = {
+        user: data.user,
+        wallets: data.wallets,
+        kyc: data.kyc,
+        cashRequests: data.cashRequests || [],
+        transactions: data.transactions || []
+      };
       document.getElementById('swapPin').value = '';
       showMsg(data.message);
       renderApp();
@@ -447,29 +500,54 @@
   async function openAdminModal() {
     document.getElementById('adminPanel').classList.remove('hidden');
     document.getElementById('adminSecretInput').value = adminSecret;
-    await loadPendingKycs();
+    await loadAdminQueue();
   }
 
-  async function loadPendingKycs() {
+  async function loadAdminQueue() {
     const list = document.getElementById('adminList');
     if (!adminSecret) {
-      list.innerHTML = '<div class="sub">Admin Secret Key ထည့်ပြီး Pending KYC ပြန်ခေါ်ပါ။</div>';
+      list.innerHTML = '<div class="sub">Admin Secret Key ထည့်ပြီး ပြန်ခေါ်ပါ။</div>';
       return;
     }
     try {
-      const d = await apiCall('/api/admin/pending-kyc', 'GET', null, { 'x-admin-secret': adminSecret });
+      const [kycData, cashData] = await Promise.all([
+        apiCall('/api/admin/pending-kyc', 'GET', null, { 'x-admin-secret': adminSecret }),
+        apiCall('/api/admin/pending-cash', 'GET', null, { 'x-admin-secret': adminSecret })
+      ]);
+
       let html = '<h4>Pending Myanmar NRC KYC</h4>';
-      if (!d.kycs.length) html += '<div class="sub">Pending KYC မရှိပါ။</div>';
-      d.kycs.forEach(u => {
-        html += `<div class="tx-item">
-          <div><strong>${u.phone_e164}</strong> (${u.phone_country})</div>
-          <div>Name: ${u.full_name} | NRC: ${u.nrc_normalized}</div>
-          <div class="row">
-            <button class="success" onclick="adminKyc('${u.user_id}','VERIFIED')">Approve</button>
-            <button class="danger" onclick="adminKyc('${u.user_id}','REJECTED')">Reject</button>
-          </div>
-        </div>`;
-      });
+      if (!kycData.kycs || !kycData.kycs.length) {
+        html += '<div class="sub">Pending KYC မရှိပါ။</div>';
+      } else {
+        kycData.kycs.forEach(u => {
+          html += `<div class="tx-item">
+            <div><strong>${u.phone_e164}</strong> (${u.phone_country})</div>
+            <div>Name: ${u.full_name} | NRC: ${u.nrc_normalized}</div>
+            <div class="row">
+              <button class="success" onclick="adminKyc('${u.user_id}','VERIFIED')">Approve</button>
+              <button class="danger" onclick="adminKyc('${u.user_id}','REJECTED')">Reject</button>
+            </div>
+          </div>`;
+        });
+      }
+
+      html += '<h4 style="margin-top:14px;">Pending KPay / WavePay Requests</h4>';
+      if (!cashData.requests || !cashData.requests.length) {
+        html += '<div class="sub">Pending Cash Request မရှိပါ။</div>';
+      } else {
+        cashData.requests.forEach(r => {
+          html += `<div class="tx-item">
+            <div><strong>#${r.id} • ${r.req_type}</strong> (${r.channel})</div>
+            <div>Account: ${r.phone_e164} → ${r.target_phone}</div>
+            <div>Amount: <strong>${Number(r.amount).toLocaleString()} MMK</strong> ${r.tx_ref ? '| Ref: ' + r.tx_ref : ''}</div>
+            <div class="row">
+              <button class="success" onclick="adminCash('${r.id}','APPROVED')">Approve</button>
+              <button class="danger" onclick="adminCash('${r.id}','REJECTED')">Reject</button>
+            </div>
+          </div>`;
+        });
+      }
+
       list.innerHTML = html;
     } catch (e) {
       list.innerHTML = `<div class="sub">${e.message}</div>`;
@@ -478,10 +556,22 @@
 
   async function adminKyc(userId, status) {
     try {
-      await apiCall('/api/admin/kyc-review', 'POST', { userId, status }, { 'x-admin-secret': adminSecret });
-      const refreshed = await apiCall(`/api/wallet/${currentSession.user.id}`);
-      currentSession = { user: refreshed.user, wallets: refreshed.wallets, kyc: refreshed.kyc, transactions: refreshed.transactions };
-      await loadPendingKycs();
+      const res = await apiCall('/api/admin/kyc-review', 'POST', { userId, status }, { 'x-admin-secret': adminSecret });
+      await refreshUserSession();
+      await loadAdminQueue();
+      showMsg(res.message);
+      renderApp();
+    } catch (e) {
+      showMsg(e.message);
+    }
+  }
+
+  async function adminCash(requestId, status) {
+    try {
+      const res = await apiCall('/api/admin/cash-review', 'POST', { requestId, status }, { 'x-admin-secret': adminSecret });
+      await refreshUserSession();
+      await loadAdminQueue();
+      showMsg(res.message);
       renderApp();
     } catch (e) {
       showMsg(e.message);
@@ -501,6 +591,17 @@
 
     document.getElementById('mmkBal').textContent = Number(currentSession.wallets.MMK || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
     document.getElementById('thbBal').textContent = Number(currentSession.wallets.THB || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+
+    const cashReqs = (currentSession.cashRequests || []).filter(r => r.status === 'PENDING');
+    const pendingEl = document.getElementById('pendingCashList');
+    if (!cashReqs.length) {
+      pendingEl.innerHTML = '<div class="sub">Pending Request မရှိပါ။</div>';
+    } else {
+      pendingEl.innerHTML = cashReqs.map(r => `<div class="tx-item">
+        <div><strong>${r.req_type}</strong> (${r.channel}) • ${Number(r.amount).toLocaleString()} ${r.currency} <span class="badge PENDING">${r.status}</span></div>
+        <div class="sub">Account: ${r.phone_e164} • Target: ${r.target_phone} ${r.tx_ref ? '• Ref: ' + r.tx_ref : ''}</div>
+      </div>`).join('');
+    }
 
     const txs = currentSession.transactions || [];
     const txEl = document.getElementById('txList');
