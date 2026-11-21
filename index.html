@@ -3,227 +3,228 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KhaoPay | KPay • WavePay • MMK/THB Wallet</title>
+  <title>KhaoPay | KPay • WavePay Wallet</title>
   <style>
     * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
-    body { margin: 0; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; padding: 16px; }
-    .app { width: 100%; max-width: 460px; background: #1e293b; border-radius: 20px; padding: 20px; box-shadow: 0 20px 40px rgba(0,0,0,.45); }
-    h1, h2, h3, h4 { margin: 0 0 12px; }
-    .sub { color: #94a3b8; font-size: 13px; margin-bottom: 14px; }
-    .card { background: #0f172a; border: 1px solid #334155; border-radius: 14px; padding: 14px; margin-bottom: 14px; }
-    .row { display: flex; gap: 8px; }
+    body { margin: 0; background: #0b1120; color: #f8fafc; display: flex; justify-content: center; padding: 14px; }
+    .app { width: 100%; max-width: 430px; background: #111827; border: 1px solid #1f2937; border-radius: 24px; padding: 18px; box-shadow: 0 24px 48px rgba(0,0,0,.55); }
+    .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .brand { font-size: 20px; font-weight: 800; letter-spacing: .3px; }
+    .sub { font-size: 12px; color: #9ca3af; }
+    .wallet-card { background: linear-gradient(135deg, #1d4ed8 0%, #0f172a 100%); border: 1px solid #3b82f6; border-radius: 20px; padding: 18px; margin-bottom: 14px; }
+    .wallet-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #dbeafe; }
+    .bal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+    .bal-item { background: rgba(15, 23, 42, .55); border-radius: 14px; padding: 12px; }
+    .bal-label { font-size: 11px; color: #93c5fd; }
+    .bal-val { font-size: 18px; font-weight: 800; margin-top: 4px; }
+    .actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+    .act-btn { background: #1f2937; border: 1px solid #374151; color: #f9fafb; border-radius: 14px; padding: 11px 6px; font-size: 12px; font-weight: 700; cursor: pointer; text-align: center; }
+    .act-btn.active { background: #2563eb; border-color: #60a5fa; }
+    .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 18px; padding: 15px; margin-bottom: 14px; }
+    h3, h4 { margin: 0 0 10px; font-size: 16px; }
     label { display: block; font-size: 12px; color: #cbd5e1; margin: 10px 0 4px; }
-    input, select, button { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid #475569; font-size: 14px; }
+    input, select, button.submit-btn { width: 100%; padding: 11px 12px; border-radius: 12px; border: 1px solid #334155; font-size: 14px; }
     input, select { background: #1e293b; color: #fff; }
-    button { background: #2563eb; color: #fff; border: none; font-weight: 600; cursor: pointer; margin-top: 10px; }
-    button.secondary { background: #334155; }
-    button.success { background: #16a34a; }
-    button.danger { background: #dc2626; }
-    .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
-    .UNVERIFIED { background: #475569; }
-    .PENDING { background: #ca8a04; color: #000; }
+    button.submit-btn { background: #2563eb; color: #fff; border: none; font-weight: 700; cursor: pointer; margin-top: 12px; }
+    button.submit-btn.green { background: #16a34a; }
+    button.submit-btn.red { background: #dc2626; }
+    button.submit-btn.gray { background: #334155; }
+    .small-btn { background: #334155; color: #fff; border: none; border-radius: 10px; padding: 7px 11px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .row { display: flex; gap: 8px; }
+    .badge { padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .UNVERIFIED { background: #475569; color: #fff; }
+    .PENDING { background: #f59e0b; color: #000; }
     .VERIFIED, .APPROVED { background: #16a34a; color: #fff; }
     .REJECTED { background: #dc2626; color: #fff; }
-    .balances { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .bal-box { background: linear-gradient(135deg, #1d4ed8, #0f172a); padding: 12px; border-radius: 12px; border: 1px solid #3b82f6; }
-    .bal-amt { font-size: 18px; font-weight: 700; margin-top: 4px; }
-    .tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 14px; }
-    .tabs button { margin: 0; padding: 8px 3px; font-size: 11px; background: #0f172a; border: 1px solid #334155; }
-    .tabs button.active { background: #2563eb; border-color: #2563eb; }
-    .tx-item { border-bottom: 1px solid #1e293b; padding: 10px 0; font-size: 13px; }
+    .tx-item { border-bottom: 1px solid #1e293b; padding: 9px 0; font-size: 13px; }
     .tx-item:last-child { border-bottom: none; }
-    .msg { padding: 10px 12px; border-radius: 10px; background: #172554; border: 1px solid #3b82f6; font-size: 13px; margin-bottom: 12px; line-height: 1.45; }
-    .rate-box { background: #1e293b; border: 1px dashed #64748b; border-radius: 10px; padding: 10px; font-size: 12px; color: #e2e8f0; margin-top: 8px; }
-    .hint-box { background: #1e293b; border-left: 3px solid #3b82f6; padding: 9px 11px; border-radius: 8px; font-size: 12px; color: #cbd5e1; margin-bottom: 10px; line-height: 1.45; }
+    .msg { background: #172554; border: 1px solid #3b82f6; color: #eff6ff; padding: 10px 12px; border-radius: 12px; font-size: 13px; margin-bottom: 12px; }
     .hidden { display: none; }
   </style>
 </head>
 <body>
 <div class="app">
-  <div style="display:flex; justify-content:space-between; align-items:center;">
+  <div class="topbar">
     <div>
-      <h2>KhaoPay</h2>
-      <div class="sub">ထိုင်း/မြန်မာ ဖုန်း + မြန်မာမှတ်ပုံတင် (NRC)</div>
+      <div class="brand">KhaoPay</div>
+      <div class="sub">KPay • WavePay Account Wallet</div>
     </div>
-    <button id="logoutBtn" class="secondary hidden" style="width:auto; padding:7px 12px; margin:0;" onclick="logout()">ထွက်ရန်</button>
+    <button id="logoutBtn" class="small-btn hidden" onclick="logout()">ထွက်ရန်</button>
   </div>
 
   <div id="msgBox" class="msg hidden"></div>
 
-  <div id="authScreen">
-    <div class="card">
-      <h3>အကောင့်ဖွင့် / ဝင်ရောက်ရန်</h3>
-      <label>နိုင်ငံကုဒ် (Country Code)</label>
-      <select id="authCountry">
-        <option value="TH">🇹🇭 ထိုင်း (+66)</option>
-        <option value="MM">🇲🇲 မြန်မာ (+95)</option>
-      </select>
+  <!-- Login / Register with Phone + OTP + 6-digit PIN -->
+  <div id="authScreen" class="card">
+    <h3>ဖုန်းနံပါတ်ဖြင့် အကောင့်ဝင် / ဖွင့်ရန်</h3>
+    <label>နိုင်ငံကုဒ်</label>
+    <select id="authCountry">
+      <option value="MM">🇲🇲 မြန်မာ (+95)</option>
+      <option value="TH">🇹🇭 ထိုင်း (+66)</option>
+    </select>
 
-      <label>ဖုန်းနံပါတ်</label>
-      <input id="authPhone" placeholder="0812345678 သို့မဟုတ် 09791234567" />
+    <label>ဖုန်းနံပါတ်</label>
+    <input id="authPhone" placeholder="09xxxxxxxxx သို့မဟုတ် 08xxxxxxxx" />
 
-      <div class="row">
-        <div style="flex:1">
-          <label>OTP ကုဒ် (၆ လုံး)</label>
-          <input id="authOtp" maxlength="6" placeholder="OTP ရိုက်ထည့်ပါ" />
-        </div>
-        <div style="flex:0.75">
-          <label>&nbsp;</label>
-          <button class="secondary" style="margin:0" onclick="sendOtp()">OTP ပို့မည်</button>
-        </div>
+    <div class="row">
+      <div style="flex:1">
+        <label>OTP (၆ လုံး)</label>
+        <input id="authOtp" maxlength="6" placeholder="OTP" />
       </div>
-
-      <label>လုံခြုံရေး PIN (ဂဏန်း ၆ လုံး)</label>
-      <input id="authPin" type="password" maxlength="6" placeholder="ဂဏန်း ၆ လုံး" />
-
-      <button onclick="loginOrRegister()">ဆက်သွားမည်</button>
+      <div style="width:105px">
+        <label>&nbsp;</label>
+        <button class="small-btn" style="width:100%; padding:11px 8px;" onclick="sendOtp()">OTP ပို့မည်</button>
+      </div>
     </div>
+
+    <label>PIN (ဂဏန်း ၆ လုံး)</label>
+    <input id="authPin" type="password" maxlength="6" placeholder="••••••" />
+
+    <button class="submit-btn" onclick="loginOrRegister()">အကောင့်ဝင်မည်</button>
   </div>
 
+  <!-- KPay / WavePay Style Wallet Dashboard -->
   <div id="mainScreen" class="hidden">
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <strong id="userPhoneText"></strong>
+    <div class="wallet-card">
+      <div class="wallet-top">
+        <div>
+          <div style="font-size:11px; opacity:.8;">အကောင့်ဖုန်းနံပါတ်</div>
+          <strong id="accPhone" style="font-size:15px;"></strong>
+        </div>
         <span id="kycBadge" class="badge UNVERIFIED">UNVERIFIED</span>
       </div>
-      <div class="balances" style="margin-top:12px;">
-        <div class="bal-box">
-          <div style="font-size:12px; color:#bfdbfe;">MMK Balance</div>
-          <div id="mmkBal" class="bal-amt">0.00</div>
+
+      <div class="bal-grid">
+        <div class="bal-item">
+          <div class="bal-label">MMK လက်ကျန်</div>
+          <div id="mmkBal" class="bal-val">0.00</div>
         </div>
-        <div class="bal-box">
-          <div style="font-size:12px; color:#bfdbfe;">THB Balance</div>
-          <div id="thbBal" class="bal-amt">0.00</div>
+        <div class="bal-item">
+          <div class="bal-label">THB လက်ကျန်</div>
+          <div id="thbBal" class="bal-val">0.00</div>
         </div>
       </div>
     </div>
 
-    <div class="tabs">
-      <button id="tab-home" class="active" onclick="switchTab('home')">မှတ်တမ်း</button>
-      <button id="tab-cash" onclick="switchTab('cash')">KPay/Wave</button>
-      <button id="tab-transfer" onclick="switchTab('transfer')">ငွေလွှဲ</button>
-      <button id="tab-swap" onclick="switchTab('swap')">ငွေလဲ</button>
-      <button id="tab-kyc" onclick="switchTab('kyc')">NRC KYC</button>
+    <div class="actions">
+      <button id="btn-cashin" class="act-btn active" onclick="openTab('cashin')">ငွေသွင်း</button>
+      <button id="btn-cashout" class="act-btn" onclick="openTab('cashout')">ငွေထုတ်</button>
+      <button id="btn-transfer" class="act-btn" onclick="openTab('transfer')">ငွေလွှဲ</button>
+      <button id="btn-history" class="act-btn" onclick="openTab('history')">မှတ်တမ်း</button>
     </div>
 
-    <div id="view-home" class="card">
-      <h3>Pending ငွေသွင်း / ငွေထုတ် Request များ</h3>
-      <div id="pendingCashList"><div class="sub">Pending Request မရှိပါ။</div></div>
-
-      <h3 style="margin-top:14px;">လတ်တလော လှုပ်ရှားမှုများ</h3>
-      <div id="txList"><div class="sub">မှတ်တမ်း မရှိသေးပါ။</div></div>
-
-      <button class="secondary" onclick="openAdminModal()">Admin စစ်ဆေးရန် (KYC & KPay/Wave Approve)</button>
-    </div>
-
-    <div id="view-cash" class="card hidden">
-      <h3>KPay / WavePay • ငွေသွင်း & ငွေထုတ်</h3>
-      <div id="cashAccountHint" class="hint-box">
-        ဤအကောင့် ဖွင့်ထားသည့် ဖုန်းနံပါတ်အတိုင်း KYC VERIFIED ဖြစ်ပြီးမှ KPay / WavePay Request တင်နိုင်ပါသည်။
-      </div>
-      <label>လုပ်ဆောင်ချက်</label>
-      <select id="cashType">
-        <option value="CASH_IN">KPay / WavePay မှ ငွေသွင်းရန် (Cash-In Request)</option>
-        <option value="CASH_OUT">KPay / WavePay သို့ ငွေထုတ်ရန် (Cash-Out Request)</option>
-      </select>
-      <label>E-Wallet Channel</label>
-      <select id="cashChannel">
+    <!-- Cash In -->
+    <div id="sec-cashin" class="card">
+      <h3>ငွေသွင်းရန် (Cash In)</h3>
+      <label>အမျိုးအစား</label>
+      <select id="inChannel">
         <option value="KPAY">KBZPay (KPay)</option>
         <option value="WAVEPAY">WavePay</option>
       </select>
-      <label>အကောင့် ဖုန်းနံပါတ် (KPay / WavePay)</label>
-      <input id="cashTarget" placeholder="09xxxxxxxxx" />
+      <label>ငွေသွင်းမည့် ဖုန်းနံပါတ်</label>
+      <input id="inPhone" placeholder="09xxxxxxxxx" />
       <label>ငွေပမာဏ (MMK)</label>
-      <input id="cashAmount" type="number" step="100" placeholder="10000" />
-      <label>Transaction ID / မှတ်ချက် (Optional)</label>
-      <input id="cashTxRef" placeholder="KPay/WavePay Txn ID" />
-      <label>အတည်ပြု PIN (ဂဏန်း ၆ လုံး)</label>
-      <input id="cashPin" type="password" maxlength="6" placeholder="ဂဏန်း ၆ လုံး" />
-      <button class="success" onclick="submitDirectCash()">Request တင်မည်</button>
+      <input id="inAmount" type="number" step="100" placeholder="10000" />
+      <label>Transaction ID (Optional)</label>
+      <input id="inTxRef" placeholder="Txn ID" />
+      <label>PIN (၆ လုံး)</label>
+      <input id="inPin" type="password" maxlength="6" placeholder="••••••" />
+      <button class="submit-btn green" onclick="submitCash('CASH_IN')">ငွေသွင်း တောင်းဆိုမည်</button>
     </div>
 
-    <div id="view-transfer" class="card hidden">
-      <h3>KhaoPay အချင်းချင်း ငွေလွှဲရန်</h3>
+    <!-- Cash Out -->
+    <div id="sec-cashout" class="card hidden">
+      <h3>ငွေထုတ်ရန် (Cash Out)</h3>
+      <label>အမျိုးအစား</label>
+      <select id="outChannel">
+        <option value="KPAY">KBZPay (KPay)</option>
+        <option value="WAVEPAY">WavePay</option>
+      </select>
+      <label>ငွေထုတ်ယူမည့် ဖုန်းနံပါတ်</label>
+      <input id="outPhone" placeholder="09xxxxxxxxx" />
+      <label>ငွေပမာဏ (MMK)</label>
+      <input id="outAmount" type="number" step="100" placeholder="10000" />
+      <label>PIN (၆ လုံး)</label>
+      <input id="outPin" type="password" maxlength="6" placeholder="••••••" />
+      <button class="submit-btn" onclick="submitCash('CASH_OUT')">ငွေထုတ် တောင်းဆိုမည်</button>
+    </div>
+
+    <!-- Transfer -->
+    <div id="sec-transfer" class="card hidden">
+      <h3>ဖုန်းနံပါတ်ဖြင့် ငွေလွှဲရန်</h3>
       <label>လက်ခံသူ နိုင်ငံ</label>
       <select id="recvCountry">
-        <option value="TH">🇹🇭 ထိုင်း (+66)</option>
         <option value="MM">🇲🇲 မြန်မာ (+95)</option>
+        <option value="TH">🇹🇭 ထိုင်း (+66)</option>
       </select>
       <label>လက်ခံသူ ဖုန်းနံပါတ်</label>
-      <input id="recvPhone" placeholder="08xxxxxxxx သို့မဟုတ် 09xxxxxxxxx" />
+      <input id="recvPhone" placeholder="09xxxxxxxxx သို့မဟုတ် 08xxxxxxxx" />
       <label>ငွေကြေး</label>
       <select id="txCurrency">
-        <option value="MMK">MMK (မြန်မာကျပ်)</option>
-        <option value="THB">THB (ထိုင်းဘတ်)</option>
+        <option value="MMK">MMK</option>
+        <option value="THB">THB</option>
       </select>
       <label>ငွေပမာဏ</label>
       <input id="txAmount" type="number" step="0.01" placeholder="1000" />
       <label>မှတ်ချက်</label>
-      <input id="txNote" placeholder="Optional note" />
-      <label>အတည်ပြု PIN (ဂဏန်း ၆ လုံး)</label>
-      <input id="txPin" type="password" maxlength="6" placeholder="ဂဏန်း ၆ လုံး" />
-      <button class="success" onclick="doTransfer()">ငွေလွှဲမည်</button>
+      <input id="txNote" placeholder="Optional" />
+      <label>PIN (၆ လုံး)</label>
+      <input id="txPin" type="password" maxlength="6" placeholder="••••••" />
+      <button class="submit-btn green" onclick="doTransfer()">ငွေလွှဲမည်</button>
     </div>
 
-    <div id="view-swap" class="card hidden">
-      <h3>MMK ↔ THB ငွေလဲလှယ်ရန်</h3>
-      <label>လဲလှယ်မည့် လမ်းကြောင်း</label>
-      <select id="swapPair" onchange="updateSwapPreview()">
-        <option value="MMK_TO_THB">MMK → THB (ကျပ်မှ ဘတ်သို့)</option>
-        <option value="THB_TO_MMK">THB → MMK (ဘတ်မှ ကျပ်သို့)</option>
-      </select>
-      <label>လဲလှယ်မည့် ပမာဏ</label>
-      <input id="swapAmount" type="number" step="0.01" placeholder="10000" oninput="updateSwapPreview()" />
-      <div id="swapPreview" class="rate-box">Rate: 1 THB = 120 MMK</div>
-      <label>အတည်ပြု PIN (ဂဏန်း ၆ လုံး)</label>
-      <input id="swapPin" type="password" maxlength="6" placeholder="ဂဏန်း ၆ လုံး" />
-      <button onclick="doSwap()">ငွေလဲမည်</button>
+    <!-- History + KYC + Admin -->
+    <div id="sec-history" class="card hidden">
+      <h3>Pending တောင်းဆိုမှုများ</h3>
+      <div id="pendingList"><div class="sub">မရှိပါ။</div></div>
+
+      <h3 style="margin-top:14px;">လှုပ်ရှားမှု မှတ်တမ်း</h3>
+      <div id="txList"><div class="sub">မှတ်တမ်း မရှိသေးပါ။</div></div>
+
+      <div id="kycBox" style="margin-top:14px; border-top:1px solid #1e293b; padding-top:12px;">
+        <h4>အကောင့် KYC အတည်ပြုရန်</h4>
+        <label>အမည်အပြည့်အစုံ</label>
+        <input id="kycName" placeholder="Full Name" />
+        <label>မှတ်ပုံတင်နံပါတ် (NRC)</label>
+        <input id="kycNrc" placeholder="12/OUKAMA(N)123456" />
+        <label>မှတ်ပုံတင် ရှေ့ပုံ</label>
+        <input type="file" accept="image/*" onchange="readImg(this,'front')" />
+        <label>မှတ်ပုံတင် နောက်ပုံ</label>
+        <input type="file" accept="image/*" onchange="readImg(this,'back')" />
+        <label>Selfie ပုံ</label>
+        <input type="file" accept="image/*" onchange="readImg(this,'selfie')" />
+        <button class="submit-btn" onclick="submitKyc()">KYC တင်မည်</button>
+      </div>
+
+      <button class="submit-btn gray" onclick="toggleAdmin()">Admin Approve ဖွင့်ရန်</button>
     </div>
 
-    <div id="view-kyc" class="card hidden">
-      <h3>မြန်မာမှတ်ပုံတင် (NRC) KYC</h3>
-      <div class="sub">ဖွင့်ထားသော ဖုန်းနံပါတ်အကောင့်ကို မြန်မာမှတ်ပုံတင်ဖြင့် အတည်ပြုနိုင်ပါသည်။</div>
-      <label>မှတ်ပုံတင်ပါ အမည်အပြည့်အစုံ</label>
-      <input id="kycName" placeholder="Mg Kyaw Kyaw" />
-      <label>မြန်မာမှတ်ပုံတင်နံပါတ် (NRC)</label>
-      <input id="kycNrc" placeholder="12/OUKAMA(N)123456" />
-      <label>မှတ်ပုံတင် အရှေ့ပုံ</label>
-      <input type="file" accept="image/*" onchange="readImg(this, 'front')" />
-      <label>မှတ်ပုံတင် အနောက်ပုံ</label>
-      <input type="file" accept="image/*" onchange="readImg(this, 'back')" />
-      <label>မှတ်ပုံတင်ကိုင်ထားသော Selfie ပုံ</label>
-      <input type="file" accept="image/*" onchange="readImg(this, 'selfie')" />
-      <button class="success" onclick="submitKyc()">KYC တင်သွင်းမည်</button>
-    </div>
-
-    <div id="adminPanel" class="card hidden">
-      <h3>Admin Panel (KYC & KPay/WavePay Approve)</h3>
-      <label>Admin Secret Key</label>
-      <input id="adminSecretInput" type="password" placeholder="ADMIN_SECRET ထည့်ပါ" oninput="saveAdminSecret()" />
-      <button class="secondary" onclick="loadAdminQueue()">Pending KYC & Cash Request ပြန်ခေါ်မည်</button>
-      <div id="adminList" style="margin-top:10px;"></div>
-      <button class="secondary" onclick="document.getElementById('adminPanel').classList.add('hidden')">ပိတ်မည်</button>
+    <div id="adminBox" class="card hidden">
+      <h3>Admin Approve</h3>
+      <label>Admin Secret</label>
+      <input id="adminSecretInput" type="password" placeholder="ADMIN_SECRET" oninput="saveAdminSecret()" />
+      <button class="submit-btn gray" onclick="loadAdminQueue()">စာရင်း ပြန်ခေါ်မည်</button>
+      <div id="adminQueue" style="margin-top:10px;"></div>
     </div>
   </div>
 </div>
 
 <script>
   const API_BASE = 'https://khaopay-wallet.onrender.com';
-  let THB_TO_MMK_RATE = 120;
   const imgs = { front: '', back: '', selfie: '' };
-  let currentSession = null;
-  let authToken = localStorage.getItem('khaopay_token') || '';
-  let savedUserId = localStorage.getItem('khaopay_uid') || '';
+  let sessionData = null;
+  let token = localStorage.getItem('khaopay_token') || '';
+  let uid = localStorage.getItem('khaopay_uid') || '';
   let adminSecret = sessionStorage.getItem('khaopay_admin_secret') || '';
 
-  function showMsg(text) {
+  function showMsg(t) {
     const el = document.getElementById('msgBox');
-    el.textContent = text;
+    el.textContent = t;
     el.classList.remove('hidden');
   }
 
-  function makeIdempotencyKey(prefix) {
-    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  function idem(prefix) {
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   }
 
   function saveAdminSecret() {
@@ -231,120 +232,70 @@
     sessionStorage.setItem('khaopay_admin_secret', adminSecret);
   }
 
-  async function apiCall(path, method = 'GET', body = null, extraHeaders = {}) {
-    const headers = {
-      'Content-Type': 'application/json',
-      ...extraHeaders
-    };
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
-    const resp = await fetch(`${API_BASE}${path}`, {
+  async function api(path, method = 'GET', body = null, extra = {}) {
+    const headers = { 'Content-Type': 'application/json', ...extra };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const r = await fetch(`${API_BASE}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined
     });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok || data.success === false) {
-      throw new Error(data.message || 'Request failed');
-    }
-    return data;
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d.success === false) throw new Error(d.message || 'Error');
+    return d;
   }
 
-  async function loadConfig() {
+  async function refreshSession() {
+    if (!token || !uid) return;
+    const d = await api(`/api/wallet/${uid}`);
+    sessionData = d;
+  }
+
+  async function init() {
+    if (!token || !uid) return;
     try {
-      const cfg = await apiCall('/api/config');
-      if (cfg && Number(cfg.rate) > 0) {
-        THB_TO_MMK_RATE = Number(cfg.rate);
-        updateSwapPreview();
-      }
-    } catch (_) {}
-  }
-
-  async function refreshUserSession() {
-    if (!authToken || !savedUserId) return;
-    const refreshed = await apiCall(`/api/wallet/${savedUserId}`);
-    currentSession = {
-      user: refreshed.user,
-      wallets: refreshed.wallets,
-      kyc: refreshed.kyc,
-      cashRequests: refreshed.cashRequests || [],
-      transactions: refreshed.transactions || []
-    };
-  }
-
-  async function restoreSession() {
-    await loadConfig();
-    if (!authToken || !savedUserId) return;
-    try {
-      await refreshUserSession();
-      renderApp();
+      await refreshSession();
+      render();
     } catch (_) {
       logout();
     }
   }
 
   async function sendOtp() {
-    const countryCode = document.getElementById('authCountry').value;
-    const phone = document.getElementById('authPhone').value;
     try {
-      const d = await apiCall('/api/auth/send-otp', 'POST', { countryCode, phone });
-      if (d.devOtp) {
-        document.getElementById('authOtp').value = d.devOtp;
-      }
+      const countryCode = document.getElementById('authCountry').value;
+      const phone = document.getElementById('authPhone').value;
+      const d = await api('/api/auth/send-otp', 'POST', { countryCode, phone });
+      if (d.devOtp) document.getElementById('authOtp').value = d.devOtp;
       showMsg(d.message);
     } catch (e) {
       showMsg(e.message);
     }
   }
 
-  function readImg(input, key) {
-    const file = input.files[0];
-    if (!file) return;
-    if (file.size > 4 * 1024 * 1024) {
-      showMsg('ဓာတ်ပုံ Size 4MB ထက် မကျော်စေရန် ရွေးချယ်ပါ။');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => { imgs[key] = reader.result; };
-    reader.readAsDataURL(file);
-  }
-
   async function loginOrRegister() {
-    const countryCode = document.getElementById('authCountry').value;
-    const phone = document.getElementById('authPhone').value;
-    const otp = document.getElementById('authOtp').value.trim();
-    const pin = document.getElementById('authPin').value.trim();
-
     try {
-      const data = await apiCall('/api/auth/register-or-login', 'POST', { countryCode, phone, otp, pin });
-      if (data.token) {
-        authToken = data.token;
-        localStorage.setItem('khaopay_token', authToken);
-      }
-      if (data.user && data.user.id) {
-        savedUserId = data.user.id;
-        localStorage.setItem('khaopay_uid', savedUserId);
-      }
-      currentSession = {
-        user: data.user,
-        wallets: data.wallets,
-        kyc: data.kyc,
-        cashRequests: data.cashRequests || [],
-        transactions: data.transactions || []
-      };
+      const countryCode = document.getElementById('authCountry').value;
+      const phone = document.getElementById('authPhone').value;
+      const otp = document.getElementById('authOtp').value.trim();
+      const pin = document.getElementById('authPin').value.trim();
+      const d = await api('/api/auth/register-or-login', 'POST', { countryCode, phone, otp, pin });
+      token = d.token;
+      uid = d.user.id;
+      localStorage.setItem('khaopay_token', token);
+      localStorage.setItem('khaopay_uid', uid);
+      sessionData = d;
       document.getElementById('authPin').value = '';
-      await loadConfig();
-      renderApp();
+      render();
     } catch (e) {
       showMsg(e.message);
     }
   }
 
   function logout() {
-    currentSession = null;
-    authToken = '';
-    savedUserId = '';
+    sessionData = null;
+    token = '';
+    uid = '';
     localStorage.removeItem('khaopay_token');
     localStorage.removeItem('khaopay_uid');
     document.getElementById('mainScreen').classList.add('hidden');
@@ -352,270 +303,190 @@
     document.getElementById('authScreen').classList.remove('hidden');
   }
 
-  function switchTab(tab) {
-    ['home', 'cash', 'transfer', 'swap', 'kyc'].forEach(t => {
-      document.getElementById('tab-' + t).classList.toggle('active', t === tab);
-      document.getElementById('view-' + t).classList.toggle('hidden', t !== tab);
+  function openTab(tab) {
+    ['cashin', 'cashout', 'transfer', 'history'].forEach(t => {
+      document.getElementById('btn-' + t).classList.toggle('active', t === tab);
+      document.getElementById('sec-' + t).classList.toggle('hidden', t !== tab);
     });
-    if (tab === 'cash' && currentSession && currentSession.user) {
-      const targetInput = document.getElementById('cashTarget');
-      if (!targetInput.value) {
-        targetInput.value = currentSession.user.phoneE164;
-      }
-      document.getElementById('cashAccountHint').textContent =
-        `အကောင့်ဖုန်းနံပါတ်: ${currentSession.user.phoneE164} • KYC Status: ${currentSession.user.kycStatus}`;
-    }
-    if (tab === 'swap') updateSwapPreview();
+  }
+
+  function readImg(input, k) {
+    const f = input.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => { imgs[k] = reader.result; };
+    reader.readAsDataURL(f);
   }
 
   async function submitKyc() {
-    const fullName = document.getElementById('kycName').value.trim();
-    const nrcNumber = document.getElementById('kycNrc').value.trim().toUpperCase().replace(/\s+/g, '');
-    if (!fullName || !nrcNumber || !imgs.front || !imgs.back || !imgs.selfie) {
-      return showMsg('အမည်၊ မှတ်ပုံတင်နံပါတ်နှင့် ဓာတ်ပုံ ၃ ပုံလုံး ထည့်ပါ။');
-    }
-
     try {
-      const data = await apiCall('/api/kyc/submit', 'POST', {
-        fullName,
-        nrcNumber,
+      const fullName = document.getElementById('kycName').value.trim();
+      const nrcNumber = document.getElementById('kycNrc').value.trim().toUpperCase().replace(/\s+/g, '');
+      const d = await api('/api/kyc/submit', 'POST', {
+        fullName, nrcNumber,
         frontImageUrl: imgs.front,
         backImageUrl: imgs.back,
         selfieImageUrl: imgs.selfie
       });
-      currentSession = {
-        user: data.user,
-        wallets: data.wallets,
-        kyc: data.kyc,
-        cashRequests: data.cashRequests || [],
-        transactions: data.transactions || []
-      };
-      showMsg(data.message);
-      renderApp();
+      sessionData = d;
+      showMsg(d.message);
+      render();
     } catch (e) {
       showMsg(e.message);
     }
   }
 
-  async function submitDirectCash() {
-    const type = document.getElementById('cashType').value;
-    const channel = document.getElementById('cashChannel').value;
-    const targetPhone = document.getElementById('cashTarget').value.trim();
-    const amount = Number(document.getElementById('cashAmount').value);
-    const txRef = document.getElementById('cashTxRef').value.trim();
-    const pin = document.getElementById('cashPin').value;
-
+  async function submitCash(type) {
     try {
-      const data = await apiCall(
+      const isIn = type === 'CASH_IN';
+      const channel = document.getElementById(isIn ? 'inChannel' : 'outChannel').value;
+      const targetPhone = document.getElementById(isIn ? 'inPhone' : 'outPhone').value.trim();
+      const amount = Number(document.getElementById(isIn ? 'inAmount' : 'outAmount').value);
+      const txRef = isIn ? document.getElementById('inTxRef').value.trim() : '';
+      const pin = document.getElementById(isIn ? 'inPin' : 'outPin').value;
+      const d = await api(
         '/api/wallet/direct-cash',
         'POST',
         { type, channel, targetPhone, amount, txRef, pin },
-        { 'x-idempotency-key': makeIdempotencyKey('cash') }
+        { 'x-idempotency-key': idem('cash') }
       );
-      currentSession = {
-        user: data.user,
-        wallets: data.wallets,
-        kyc: data.kyc,
-        cashRequests: data.cashRequests || [],
-        transactions: data.transactions || []
-      };
-      document.getElementById('cashPin').value = '';
-      document.getElementById('cashAmount').value = '';
-      document.getElementById('cashTxRef').value = '';
-      showMsg(data.message);
-      renderApp();
+      sessionData = d;
+      document.getElementById(isIn ? 'inPin' : 'outPin').value = '';
+      showMsg(d.message);
+      render();
     } catch (e) {
       showMsg(e.message);
     }
   }
 
   async function doTransfer() {
-    const receiverCountryCode = document.getElementById('recvCountry').value;
-    const receiverPhone = document.getElementById('recvPhone').value;
-    const currency = document.getElementById('txCurrency').value;
-    const amount = Number(document.getElementById('txAmount').value);
-    const note = document.getElementById('txNote').value.trim();
-    const pin = document.getElementById('txPin').value;
-
     try {
-      const data = await apiCall(
+      const receiverCountryCode = document.getElementById('recvCountry').value;
+      const receiverPhone = document.getElementById('recvPhone').value.trim();
+      const currency = document.getElementById('txCurrency').value;
+      const amount = Number(document.getElementById('txAmount').value);
+      const note = document.getElementById('txNote').value.trim();
+      const pin = document.getElementById('txPin').value;
+      const d = await api(
         '/api/transfer',
         'POST',
         { receiverCountryCode, receiverPhone, currency, amount, note, pin },
-        { 'x-idempotency-key': makeIdempotencyKey('tx') }
+        { 'x-idempotency-key': idem('tx') }
       );
-      currentSession = {
-        user: data.user,
-        wallets: data.wallets,
-        kyc: data.kyc,
-        cashRequests: data.cashRequests || [],
-        transactions: data.transactions || []
-      };
+      sessionData = d;
       document.getElementById('txPin').value = '';
-      showMsg(data.message);
-      renderApp();
+      showMsg(d.message);
+      render();
     } catch (e) {
       showMsg(e.message);
     }
   }
 
-  function updateSwapPreview() {
-    const pair = document.getElementById('swapPair').value;
-    const amt = Number(document.getElementById('swapAmount').value || 0);
-    const preview = document.getElementById('swapPreview');
-    if (pair === 'MMK_TO_THB') {
-      preview.textContent = `Rate: 1 THB = ${THB_TO_MMK_RATE} MMK • ရရှိမည့်ပမာဏ: ${(amt / THB_TO_MMK_RATE).toFixed(2)} THB`;
-    } else {
-      preview.textContent = `Rate: 1 THB = ${THB_TO_MMK_RATE} MMK • ရရှိမည့်ပမာဏ: ${Number((amt * THB_TO_MMK_RATE).toFixed(2)).toLocaleString()} MMK`;
-    }
-  }
-
-  async function doSwap() {
-    const pair = document.getElementById('swapPair').value;
-    const amount = Number(document.getElementById('swapAmount').value);
-    const pin = document.getElementById('swapPin').value;
-
-    try {
-      const data = await apiCall(
-        '/api/swap',
-        'POST',
-        { pair, amount, pin },
-        { 'x-idempotency-key': makeIdempotencyKey('swap') }
-      );
-      currentSession = {
-        user: data.user,
-        wallets: data.wallets,
-        kyc: data.kyc,
-        cashRequests: data.cashRequests || [],
-        transactions: data.transactions || []
-      };
-      document.getElementById('swapPin').value = '';
-      showMsg(data.message);
-      renderApp();
-    } catch (e) {
-      showMsg(e.message);
-    }
-  }
-
-  async function openAdminModal() {
-    document.getElementById('adminPanel').classList.remove('hidden');
+  async function toggleAdmin() {
+    const box = document.getElementById('adminBox');
+    box.classList.toggle('hidden');
     document.getElementById('adminSecretInput').value = adminSecret;
-    await loadAdminQueue();
+    if (!box.classList.contains('hidden')) await loadAdminQueue();
   }
 
   async function loadAdminQueue() {
-    const list = document.getElementById('adminList');
+    const q = document.getElementById('adminQueue');
     if (!adminSecret) {
-      list.innerHTML = '<div class="sub">Admin Secret Key ထည့်ပြီး ပြန်ခေါ်ပါ။</div>';
+      q.innerHTML = '<div class="sub">Admin Secret ထည့်ပါ။</div>';
       return;
     }
     try {
-      const [kycData, cashData] = await Promise.all([
-        apiCall('/api/admin/pending-kyc', 'GET', null, { 'x-admin-secret': adminSecret }),
-        apiCall('/api/admin/pending-cash', 'GET', null, { 'x-admin-secret': adminSecret })
+      const [kyc, cash] = await Promise.all([
+        api('/api/admin/pending-kyc', 'GET', null, { 'x-admin-secret': adminSecret }),
+        api('/api/admin/pending-cash', 'GET', null, { 'x-admin-secret': adminSecret })
       ]);
+      let html = '<h4>Pending KYC</h4>';
+      if (!kyc.kycs.length) html += '<div class="sub">မရှိပါ။</div>';
+      kyc.kycs.forEach(u => {
+        html += `<div class="tx-item">
+          <div><strong>${u.phone_e164}</strong> • ${u.full_name} (${u.nrc_normalized})</div>
+          <div class="row" style="margin-top:6px;">
+            <button class="submit-btn green" style="margin:0" onclick="reviewKyc(${u.user_id},'VERIFIED')">Approve</button>
+            <button class="submit-btn red" style="margin:0" onclick="reviewKyc(${u.user_id},'REJECTED')">Reject</button>
+          </div>
+        </div>`;
+      });
 
-      let html = '<h4>Pending Myanmar NRC KYC</h4>';
-      if (!kycData.kycs || !kycData.kycs.length) {
-        html += '<div class="sub">Pending KYC မရှိပါ။</div>';
-      } else {
-        kycData.kycs.forEach(u => {
-          html += `<div class="tx-item">
-            <div><strong>${u.phone_e164}</strong> (${u.phone_country})</div>
-            <div>Name: ${u.full_name} | NRC: ${u.nrc_normalized}</div>
-            <div class="row">
-              <button class="success" onclick="adminKyc('${u.user_id}','VERIFIED')">Approve</button>
-              <button class="danger" onclick="adminKyc('${u.user_id}','REJECTED')">Reject</button>
-            </div>
-          </div>`;
-        });
-      }
-
-      html += '<h4 style="margin-top:14px;">Pending KPay / WavePay Requests</h4>';
-      if (!cashData.requests || !cashData.requests.length) {
-        html += '<div class="sub">Pending Cash Request မရှိပါ။</div>';
-      } else {
-        cashData.requests.forEach(r => {
-          html += `<div class="tx-item">
-            <div><strong>#${r.id} • ${r.req_type}</strong> (${r.channel})</div>
-            <div>Account: ${r.phone_e164} → ${r.target_phone}</div>
-            <div>Amount: <strong>${Number(r.amount).toLocaleString()} MMK</strong> ${r.tx_ref ? '| Ref: ' + r.tx_ref : ''}</div>
-            <div class="row">
-              <button class="success" onclick="adminCash('${r.id}','APPROVED')">Approve</button>
-              <button class="danger" onclick="adminCash('${r.id}','REJECTED')">Reject</button>
-            </div>
-          </div>`;
-        });
-      }
-
-      list.innerHTML = html;
+      html += '<h4 style="margin-top:12px;">Pending Cash In / Out</h4>';
+      if (!cash.requests.length) html += '<div class="sub">မရှိပါ။</div>';
+      cash.requests.forEach(r => {
+        html += `<div class="tx-item">
+          <div><strong>#${r.id} ${r.req_type}</strong> (${r.channel}) • ${Number(r.amount).toLocaleString()} MMK</div>
+          <div class="sub">${r.phone_e164}</div>
+          <div class="row" style="margin-top:6px;">
+            <button class="submit-btn green" style="margin:0" onclick="reviewCash(${r.id},'APPROVED')">Approve</button>
+            <button class="submit-btn red" style="margin:0" onclick="reviewCash(${r.id},'REJECTED')">Reject</button>
+          </div>
+        </div>`;
+      });
+      q.innerHTML = html;
     } catch (e) {
-      list.innerHTML = `<div class="sub">${e.message}</div>`;
+      q.innerHTML = `<div class="sub">${e.message}</div>`;
     }
   }
 
-  async function adminKyc(userId, status) {
+  async function reviewKyc(userId, status) {
     try {
-      const res = await apiCall('/api/admin/kyc-review', 'POST', { userId, status }, { 'x-admin-secret': adminSecret });
-      await refreshUserSession();
+      const d = await api('/api/admin/kyc-review', 'POST', { userId, status }, { 'x-admin-secret': adminSecret });
+      await refreshSession();
       await loadAdminQueue();
-      showMsg(res.message);
-      renderApp();
+      showMsg(d.message);
+      render();
     } catch (e) {
       showMsg(e.message);
     }
   }
 
-  async function adminCash(requestId, status) {
+  async function reviewCash(requestId, status) {
     try {
-      const res = await apiCall('/api/admin/cash-review', 'POST', { requestId, status }, { 'x-admin-secret': adminSecret });
-      await refreshUserSession();
+      const d = await api('/api/admin/cash-review', 'POST', { requestId, status }, { 'x-admin-secret': adminSecret });
+      await refreshSession();
       await loadAdminQueue();
-      showMsg(res.message);
-      renderApp();
+      showMsg(d.message);
+      render();
     } catch (e) {
       showMsg(e.message);
     }
   }
 
-  function renderApp() {
-    if (!currentSession) return;
+  function render() {
+    if (!sessionData) return;
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('mainScreen').classList.remove('hidden');
     document.getElementById('logoutBtn').classList.remove('hidden');
 
-    document.getElementById('userPhoneText').textContent = `${currentSession.user.phoneE164} (${currentSession.user.phoneCountry})`;
+    const p = sessionData.user.phoneE164;
+    const st = sessionData.user.kycStatus;
+    document.getElementById('accPhone').textContent = p;
     const badge = document.getElementById('kycBadge');
-    badge.textContent = currentSession.user.kycStatus;
-    badge.className = 'badge ' + currentSession.user.kycStatus;
+    badge.textContent = st;
+    badge.className = 'badge ' + st;
 
-    document.getElementById('mmkBal').textContent = Number(currentSession.wallets.MMK || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
-    document.getElementById('thbBal').textContent = Number(currentSession.wallets.THB || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+    if (!document.getElementById('inPhone').value) document.getElementById('inPhone').value = p;
+    if (!document.getElementById('outPhone').value) document.getElementById('outPhone').value = p;
 
-    const cashReqs = (currentSession.cashRequests || []).filter(r => r.status === 'PENDING');
-    const pendingEl = document.getElementById('pendingCashList');
-    if (!cashReqs.length) {
-      pendingEl.innerHTML = '<div class="sub">Pending Request မရှိပါ။</div>';
-    } else {
-      pendingEl.innerHTML = cashReqs.map(r => `<div class="tx-item">
-        <div><strong>${r.req_type}</strong> (${r.channel}) • ${Number(r.amount).toLocaleString()} ${r.currency} <span class="badge PENDING">${r.status}</span></div>
-        <div class="sub">Account: ${r.phone_e164} • Target: ${r.target_phone} ${r.tx_ref ? '• Ref: ' + r.tx_ref : ''}</div>
-      </div>`).join('');
-    }
+    document.getElementById('mmkBal').textContent = Number(sessionData.wallets.MMK || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+    document.getElementById('thbBal').textContent = Number(sessionData.wallets.THB || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
 
-    const txs = currentSession.transactions || [];
-    const txEl = document.getElementById('txList');
-    if (!txs.length) {
-      txEl.innerHTML = '<div class="sub">မှတ်တမ်း မရှိသေးပါ။</div>';
-    } else {
-      txEl.innerHTML = txs.map(t => `<div class="tx-item">
-        <div><strong>${t.tx_type}</strong> • ${Number(t.amount).toLocaleString()} ${t.currency}</div>
-        <div class="sub">${t.sender_phone || ''} → ${t.receiver_phone || ''} ${t.note ? '(' + t.note + ')' : ''}</div>
-      </div>`).join('');
-    }
+    document.getElementById('kycBox').classList.toggle('hidden', st === 'VERIFIED');
+
+    const pending = (sessionData.cashRequests || []).filter(r => r.status === 'PENDING');
+    document.getElementById('pendingList').innerHTML = pending.length
+      ? pending.map(r => `<div class="tx-item"><strong>${r.req_type}</strong> (${r.channel}) • ${Number(r.amount).toLocaleString()} MMK <span class="badge PENDING">PENDING</span></div>`).join('')
+      : '<div class="sub">မရှိပါ။</div>';
+
+    const txs = sessionData.transactions || [];
+    document.getElementById('txList').innerHTML = txs.length
+      ? txs.map(t => `<div class="tx-item"><div><strong>${t.tx_type}</strong> • ${Number(t.amount).toLocaleString()} ${t.currency}</div><div class="sub">${t.note || ''}</div></div>`).join('')
+      : '<div class="sub">မှတ်တမ်း မရှိသေးပါ။</div>';
   }
 
-  restoreSession();
+  init();
 </script>
 </body>
 </html>
