@@ -7,7 +7,7 @@ const { Pool } = require('pg');
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '15mb' }));
+app.use(express.json({ limit: '25mb' }));
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -21,9 +21,9 @@ const OTP_TTL_MS = 5 * 60 * 1000;
 const MAX_PIN_ATTEMPTS = 5;
 const PIN_LOCK_MS = 15 * 60 * 1000;
 
-const otpStore = new Map();         // phoneE164 -> { code, expiresAt, attempts }
-const pinFailStore = new Map();     // userId -> { fails, lockedUntil }
-const idempotencyStore = new Map(); // key -> { expiresAt, response }
+const otpStore = new Map();
+const pinFailStore = new Map();
+const idempotencyStore = new Map();
 
 setInterval(() => {
   const now = Date.now();
@@ -222,7 +222,7 @@ async function getFullUserState(dbOrClient, userId) {
   );
   const cashReqRes = await dbOrClient.query(
     `SELECT id, phone_e164, req_type, channel, target_phone, currency, amount, tx_ref, status, admin_note, created_at, reviewed_at
-     FROM cash_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20`,
+     FROM cash_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 30`,
     [userId]
   );
   const txRes = await dbOrClient.query(
@@ -368,6 +368,15 @@ app.post('/api/auth/register-or-login', async (req, res) => {
   }
 });
 
+app.get('/api/me', requireAuth, async (req, res) => {
+  try {
+    const state = await getFullUserState(pool, req.authUserId);
+    res.json({ success: true, ...state });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 app.get('/api/wallet/:userId', requireAuth, async (req, res) => {
   if (String(req.params.userId) !== String(req.authUserId)) {
     return res.status(403).json({ success: false, message: 'အခြားအကောင့် အချက်အလက်ကို ကြည့်ခွင့်မရှိပါ။' });
@@ -465,7 +474,6 @@ async function callExternalWalletPayout({ channel, phone, amount, refId }) {
   return `MANUAL_${channel}_${Date.now()}`;
 }
 
-// Create KPay / WavePay CASH_IN or CASH_OUT request strictly bound to the logged-in account's phone number
 app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, res) => {
   const userId = req.authUserId;
   const { type, channel, targetPhone, amount, txRef, slipImageUrl, pin } = req.body;
@@ -515,7 +523,6 @@ app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, r
       effectivePhone = normalizedTarget;
     }
 
-    // Reserve MMK balance on CASH_OUT request so funds cannot be double-spent before admin review
     if (type === 'CASH_OUT') {
       const wRes = await client.query(
         `SELECT id, balance FROM wallets WHERE user_id = $1 AND currency = 'MMK' FOR UPDATE`,
@@ -565,7 +572,6 @@ app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, r
   }
 });
 
-// Admin list pending cash requests
 app.get('/api/admin/pending-cash', requireAdmin, async (req, res) => {
   try {
     const r = await pool.query(
@@ -581,7 +587,6 @@ app.get('/api/admin/pending-cash', requireAdmin, async (req, res) => {
   }
 });
 
-// Admin list recent cash requests (all statuses)
 app.get('/api/admin/cash-requests', requireAdmin, async (req, res) => {
   try {
     const r = await pool.query(
@@ -596,7 +601,6 @@ app.get('/api/admin/cash-requests', requireAdmin, async (req, res) => {
   }
 });
 
-// Admin approve or reject CASH_IN / CASH_OUT request for the user's account
 app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, res) => {
   const { requestId, status, adminNote } = req.body;
   const reqIdNum = Number(requestId);
@@ -633,7 +637,6 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
     const amount = Number(cr.amount);
 
     if (status === 'REJECTED') {
-      // Refund reserved MMK if CASH_OUT was rejected
       if (cr.req_type === 'CASH_OUT') {
         await client.query(
           `UPDATE wallets SET balance = balance + $1 WHERE id = $2`,
@@ -666,7 +669,6 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
         ]
       );
     } else if (cr.req_type === 'CASH_OUT') {
-      // Balance was already reserved when CASH_OUT request was submitted
       const extTxId = await callExternalWalletPayout({
         channel: cr.channel,
         phone: cr.target_phone,
