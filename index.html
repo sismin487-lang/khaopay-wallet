@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KhaoPay | KPay • WavePay • MMK/THB Wallet</title>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; padding: 16px; }
+    .app { width: 100%; max-width: 450px; background: #1e293b; border-radius: 20px; padding: 20px; box-shadow: 0 20px 40px rgba(0,0,0,.45); }
+    h1, h2, h3, h4 { margin: 0 0 12px; }
+    .sub { color: #94a3b8; font-size: 13px; margin-bottom: 14px; }
+    .card { background: #0f172a; border: 1px solid #334155; border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+    .row { display: flex; gap: 8px; }
+    label { display: block; font-size: 12px; color: #cbd5e1; margin: 10px 0 4px; }
+    input, select, button { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid #475569; font-size: 14px; }
+    input, select { background: #1e293b; color: #fff; }
+    button { background: #2563eb; color: #fff; border: none; font-weight: 600; cursor: pointer; margin-top: 10px; }
+    button.secondary { background: #334155; }
+    button.success { background: #16a34a; }
+    button.danger { background: #dc2626; }
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .UNVERIFIED { background: #475569; }
+    .PENDING { background: #ca8a04; color: #000; }
+    .VERIFIED { background: #16a34a; }
+    .REJECTED { background: #dc2626; }
+    .balances { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .bal-box { background: linear-gradient(135deg, #1d4ed8, #0f172a); padding: 12px; border-radius: 12px; border: 1px solid #3b82f6; }
+    .bal-amt { font-size: 18px; font-weight: 700; margin-top: 4px; }
+    .tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 14px; }
+    .tabs button { margin: 0; padding: 8px 3px; font-size: 11px; background: #0f172a; border: 1px solid #334155; }
+    .tabs button.active { background: #2563eb; border-color: #2563eb; }
+    .tx-item { border-bottom: 1px solid #1e293b; padding: 8px 0; font-size: 13px; }
+    .msg { padding: 10px; border-radius: 10px; background: #172554; border: 1px solid #3b82f6; font-size: 13px; margin-bottom: 12px; }
+    .rate-box { background: #1e293b; border: 1px dashed #64748b; border-radius: 10px; padding: 10px; font-size: 12px; color: #e2e8f0; margin-top: 8px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div>
+      <h2>KhaoPay</h2>
+      <div class="sub">ထိုင်း/မြန်မာ ဖုန်း + မြန်မာမှတ်ပုံတင် (NRC)</div>
+    </div>
+    <button id="logoutBtn" class="secondary hidden" style="width:auto; padding:7px 12px; margin:0;" onclick="logout()">ထွက်ရန်</button>
+  </div>
+
+  <div id="msgBox" class="msg hidden"></div>
+
+  <div id="authScreen">
+    <div class="card">
+      <h3>အကောင့်ဖွင့် / ဝင်ရောက်ရန်</h3>
+      <label>နိုင်ငံကုဒ် (Country Code)</label>
+      <select id="authCountry">
+        <option value="TH">🇹🇭 ထိုင်း (+66)</option>
+        <option value="MM">🇲🇲 မြန်မာ (+95)</option>
+      </select>
+
+      <label>ဖုန်းနံပါတ်</label>
+      <input id="authPhone" placeholder="0812345678 သို့မဟုတ် 09791234567" />
+
+      <div class="row">
+        <div style="flex:1">
+          <label>OTP (123456)</label>
+          <input id="authOtp" value="123456" />
+        </div>
+        <div style="flex:0.7">
+          <label>&nbsp;</label>
+          <button class="secondary" style="margin:0" onclick="sendOtp()">OTP ပို့မည်</button>
+        </div>
+      </div>
+
+      <label>လုံခြုံရေး PIN (ဂဏန်း ၆ လုံး)</label>
+      <input id="authPin" type="password" maxlength="6" placeholder="123456" />
+
+      <button onclick="loginOrRegister()">ဆက်သွားမည်</button>
+    </div>
+  </div>
+
+  <div id="mainScreen" class="hidden">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong id="userPhoneText"></strong>
+        <span id="kycBadge" class="badge UNVERIFIED">UNVERIFIED</span>
+      </div>
+      <div class="balances" style="margin-top:12px;">
+        <div class="bal-box">
+          <div style="font-size:12px; color:#bfdbfe;">MMK Balance</div>
+          <div id="mmkBal" class="bal-amt">0.00</div>
+        </div>
+        <div class="bal-box">
+          <div style="font-size:12px; color:#bfdbfe;">THB Balance</div>
+          <div id="thbBal" class="bal-amt">0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button id="tab-home" class="active" onclick="switchTab('home')">မှတ်တမ်း</button>
+      <button id="tab-cash" onclick="switchTab('cash')">KPay/Wave</button>
+      <button id="tab-transfer" onclick="switchTab('transfer')">ငွေလွှဲ</button>
+      <button id="tab-swap" onclick="switchTab('swap')">ငွေလဲ</button>
+      <button id="tab-kyc" onclick="switchTab('kyc')">NRC KYC</button>
+    </div>
+
+    <div id="view-home" class="card">
+      <h3>လတ်တလော လှုပ်ရှားမှုများ</h3>
+      <div id="txList"><div class="sub">မှတ်တမ်း မရှိသေးပါ။</div></div>
+      <button class="secondary" onclick="openAdminModal()">Admin စစ်ဆေးရန် (KYC Approve)</button>
+    </div>
+
+    <div id="view-cash" class="card hidden">
+      <h3>KPay / WavePay တိုက်ရိုက် သွင်း • လွှဲ/ထုတ်</h3>
+      <label>လုပ်ဆောင်ချက်</label>
+      <select id="cashType">
+        <option value="CASH_IN">KPay / WavePay မှ ငွေသွင်းရန် (Cash-In)</option>
+        <option value="CASH_OUT">KPay / WavePay သို့ တိုက်ရိုက်ငွေလွှဲ/ထုတ်ရန် (Direct Transfer)</option>
+      </select>
+      <label>E-Wallet Channel</label>
+      <select id="cashChannel">
+        <option value="KPAY">KBZPay (KPay)</option>
+        <option value="WAVEPAY">WavePay</option>
+      </select>
+      <label>KPay / WavePay ဖုန်းနံပါတ်</label>
+      <input id="cashTarget" placeholder="09xxxxxxxxx" />
+      <label>ငွေပမာဏ (MMK)</label>
+      <input id="cashAmount" type="number" step="100" placeholder="10000" />
+      <label>အတည်ပြု PIN (ဂဏန်း ၆ လုံး)</label>
+      <input id="cashPin" type="password" maxlength="6" placeholder="123456" />
+      <button class="success" onclick="submitDirectCash()">တိုက်ရိုက် လုပ်ဆောင်မည်</button>
+    </div>
+
+    <div id="view-transfer" class="card hidden">
+      <h3>KhaoPay အချင်းချင်း ငွေလွှဲရန်</h3>
+      <label>လက်ခံသူ နိုင်ငံ</label>
+      <select id="recvCountry">
+        <option value="TH">🇹🇭 ထိုင်း (+66)</option>
+        <option value="MM">🇲🇲 မြန်မာ (+95)</option>
+      </select>
+      <label>လက်ခံသူ ဖုန်းနံပါတ်</label>
+      <input id="recvPhone" placeholder="08xxxxxxxx သို့မဟုတ် 09xxxxxxxxx" />
+      <label>ငွေကြေး</label>
+      <select id="txCurrency">
+        <option value="MMK">MMK (မြန်မာကျပ်)</option>
+        <option value="THB">THB (ထိုင်းဘတ်)</option>
+      </select>
+      <label>ငွေပမာဏ</label>
+      <input id="txAmount" type="number" step="0.01" placeholder="1000" />
+      <label>မှတ်ချက်</label>
+      <input id="txNote" placeholder="Optional note" />
+      <label>အတည်ပြု PIN (ဂဏန်း ၆ လုံး)</label>
+      <input id="txPin" type="password" maxlength="6" placeholder="123456" />
+      <button class="success" onclick="doTransfer()">ငွေလွှဲမည်</button>
+    </div>
+
+    <div id="view-swap" class="card hidden">
+      <h3>MMK ↔ THB ငွေလဲလှယ်ရန်</h3>
+      <label>လဲလှယ်မည့် လမ်းကြောင်း</label>
+      <select id="swapPair" onchange="updateSwapPreview()">
+        <option value="MMK_TO_THB">MMK → THB (ကျပ်မှ ဘတ်သို့)</option>
+        <option value="THB_TO_MMK">THB → MMK (ဘတ်မှ ကျပ်သို့)</option>
+      </select>
+      <label>လဲလှယ်မည့် ပမာဏ</label>
+      <input id="swapAmount" type="number" step="0.01" placeholder="10000" oninput="updateSwapPreview()" />
+      <div id="swapPreview" class="rate-box">Rate: 1 THB = 120 MMK</div>
+      <label>အတည်ပြု PIN (ဂဏန်း ၆ လုံး)</label>
+      <input id="swapPin" type="password" maxlength="6" placeholder="123456" />
+      <button onclick="doSwap()">ငွေလဲမည်</button>
+    </div>
+
+    <div id="view-kyc" class="card hidden">
+      <h3>မြန်မာမှတ်ပုံတင် (NRC) KYC</h3>
+      <div class="sub">ထိုင်းဆင်းကဒ်နဲ့ ဖွင့်ထားသော အကောင့်များလည်း မြန်မာမှတ်ပုံတင်ဖြင့် အတည်ပြုနိုင်ပါသည်။</div>
+      <label>မှတ်ပုံတင်ပါ အမည်အပြည့်အစုံ</label>
+      <input id="kycName" placeholder="Mg Kyaw Kyaw" />
+      <label>မြန်မာမှတ်ပုံတင်နံပါတ် (NRC)</label>
+      <input id="kycNrc" placeholder="12/OUKAMA(N)123456" />
+      <label>မှတ်ပုံတင် အရှေ့ပုံ</label>
+      <input type="file" accept="image/*" onchange="readImg(this, 'front')" />
+      <label>မှတ်ပုံတင် အနောက်ပုံ</label>
+      <input type="file" accept="image/*" onchange="readImg(this, 'back')" />
+      <label>မှတ်ပုံတင်ကိုင်ထားသော Selfie ပုံ</label>
+      <input type="file" accept="image/*" onchange="readImg(this, 'selfie')" />
+      <button class="success" onclick="submitKyc()">KYC တင်သွင်းမည်</button>
+    </div>
+
+    <div id="adminPanel" class="card hidden">
+      <h3>Admin Panel (Myanmar NRC KYC Approve)</h3>
+      <div id="adminList"></div>
+      <button class="secondary" onclick="document.getElementById('adminPanel').classList.add('hidden')">ပိတ်မည်</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = '';
+  const THB_TO_MMK_RATE = 120;
+  const imgs = { front: '', back: '', selfie: '' };
+  let currentSession = null;
+
+  function showMsg(text) {
+    const el = document.getElementById('msgBox');
+    el.textContent = text;
+    el.classList.remove('hidden');
+  }
+
+  function normPhone(country, raw) {
+    let d = String(raw || '').replace(/\D/g, '');
+    if (d.startsWith('66')) d = d.slice(2);
+    if (d.startsWith('95')) d = d.slice(2);
+    if (d.startsWith('0')) d = d.slice(1);
+    return (country === 'TH' ? '+66' : '+95') + d;
+  }
+
+  function getDemoDb() {
+    return JSON.parse(localStorage.getItem('khaopay_db') || '{"users":[],"txs":[]}');
+  }
+  function saveDemoDb(db) {
+    localStorage.setItem('khaopay_db', JSON.stringify(db));
+  }
+
+  async function apiCall(path, method = 'GET', body = null) {
+    const resp = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || data.success === false) {
+      throw new Error(data.message || 'Request failed');
+    }
+    return data;
+  }
+
+  async function sendOtp() {
+    const countryCode = document.getElementById('authCountry').value;
+    const phone = document.getElementById('authPhone').value;
+    if (API_BASE) {
+      try {
+        const d = await apiCall('/api/auth/send-otp', 'POST', { countryCode, phone });
+        return showMsg(d.message);
+      } catch (e) {
+        return showMsg(e.message);
+      }
+    }
+    showMsg('OTP 123456 ပို့ပြီးပါပြီ။');
+  }
+
+  function readImg(input, key) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { imgs[key] = reader.result; };
+    reader.readAsDataURL(file);
+  }
+
+  async function loginOrRegister() {
+    const countryCode = document.getElementById('authCountry').value;
+    const phone = document.getElementById('authPhone').value;
+    const otp = document.getElementById('authOtp').value;
+    const pin = document.getElementById('authPin').value;
+
+    if (API_BASE) {
+      try {
+        const data = await apiCall('/api/auth/register-or-login', 'POST', { countryCode, phone, otp, pin });
+        currentSession = data;
+        renderApp();
+        return;
+      } catch (e) {
+        return showMsg(e.message);
+      }
+    }
+
+    if (String(otp) !== '123456') return showMsg('OTP မှားယွင်းနေပါသည် (123456 ထည့်ပါ)။');
+    if (!/^\d{6}$/.test(pin)) return showMsg('PIN ဂဏန်း ၆ လုံး ထည့်ပါ။');
+
+    const phoneE164 = normPhone(countryCode, phone);
+    const db = getDemoDb();
+    let user = db.users.find(u => u.phoneE164 === phoneE164);
+
+    if (!user) {
+      user = {
+        id: 'u_' + Date.now(),
+        phoneE164,
+        phoneCountry: countryCode,
+        pin,
+        kycStatus: 'UNVERIFIED',
+        kyc: null,
+        wallets: { MMK: 0, THB: 0 }
+      };
+      db.users.push(user);
+      saveDemoDb(db);
+    } else if (user.pin !== pin) {
+      return showMsg('PIN မှားယွင်းနေပါသည်။');
+    }
+
+    currentSession = {
+      user: { id: user.id, phoneE164: user.phoneE164, phoneCountry: user.phoneCountry, kycStatus: user.kycStatus },
+      wallets: user.wallets,
+      kyc: user.kyc,
+      transactions: db.txs
+    };
+    renderApp();
+  }
+
+  function logout() {
+    currentSession = null;
+    document.getElementById('mainScreen').classList.add('hidden');
+    document.getElementById('logoutBtn').classList.add('hidden');
+    document.getElementById('authScreen').classList.remove('hidden');
+  }
+
+  function switchTab(tab) {
+    ['home', 'cash', 'transfer', 'swap', 'kyc'].forEach(t => {
+      document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+      document.getElementById('view-' + t).classList.toggle('hidden', t !== tab);
+    });
+    if (tab === 'swap') updateSwapPreview();
+  }
+
+  async function submitKyc() {
+    const fullName = document.getElementById('kycName').value.trim();
+    const nrcNumber = document.getElementById('kycNrc').value.trim().toUpperCase().replace(/\s+/g, '');
+    if (!fullName || !nrcNumber || !imgs.front || !imgs.back || !imgs.selfie) {
+      return showMsg('အမည်၊ မှတ်ပုံတင်နံပါတ်နှင့် ဓာတ်ပုံ ၃ ပုံလုံး ထည့်ပါ။');
+    }
+
+    if (API_BASE) {
+      try {
+        const data = await apiCall('/api/kyc/submit', 'POST', {
+          userId: currentSession.user.id,
+          fullName,
+          nrcNumber,
+          frontImageUrl: imgs.front,
+          backImageUrl: imgs.back,
+          selfieImageUrl: imgs.selfie
+        });
+        currentSession = { user: data.user, wallets: data.wallets, kyc: data.kyc, transactions: data.transactions };
+        showMsg(data.message);
+        renderApp();
+        return;
+      } catch (e) {
+        return showMsg(e.message);
+      }
+    }
+
+    const db = getDemoDb();
+    const dup = db.users.find(u => u.id !== currentSession.user.id && u.kyc && u.kyc.nrc === nrcNumber);
+    if (dup) return showMsg('ဤမှတ်ပုံတင်နံပါတ်ကို အခြားအကောင့်တွင် သုံးထားပြီး ဖြစ်ပါသည်။');
+
+    const u = db.users.find(x => x.id === currentSession.user.id);
+    u.kyc = { fullName, nrc: nrcNumber, status: 'PENDING' };
+    u.kycStatus = 'PENDING';
+    saveDemoDb(db);
+    currentSession.user.kycStatus = 'PENDING';
+    currentSession.kyc = u.kyc;
+    showMsg('မြန်မာမှတ်ပုံတင် (NRC) KYC တင်သွင်းပြီးပါပြီ။');
+    renderApp();
+  }
+
+  async function submitDirectCash() {
+    const type = document.getElementById('cashType').value;
+    const channel = document.getElementById('cashChannel').value;
+    const targetPhone = document.getElementById('cashTarget').value.trim();
+    const amount = Number(document.getElementById('cashAmount').value);
+    const pin = document.getElementById('cashPin').value;
+
+    if (API_BASE) {
+      try {
+        const data = await apiCall('/api/wallet/direct-cash', 'POST', {
+          userId: currentSession.user.id,
+          type,
+          channel,
+          targetPhone,
+          amount,
+          pin
+        });
+        currentSession = { user: data.user, wallets: data.wallets, kyc: data.kyc, transactions: data.transactions };
+        document.getElementById('cashPin').value = '';
+        showMsg(data.message);
+        renderApp();
+        return;
+      } catch (e) {
+        return showMsg(e.message);
+      }
+    }
+
+    const db = getDemoDb();
+    const u = db.users.find(x => x.id === currentSession.user.id);
+    if (u.kycStatus !== 'VERIFIED') return showMsg('KPay/WavePay ဝန်ဆောင်မှုသုံးရန် KYC VERIFIED ဖြစ်ရပါမည်။');
+    if (u.pin !== pin) return showMsg('လုံခြုံရေး PIN မှားယွင်းနေပါသည်။');
+    if (!targetPhone || !(amount > 0)) return showMsg('ဖုန်းနံပါတ်နှင့် ငွေပမာဏ မှန်ကန်စွာ ထည့်ပါ။');
+
+    if (type === 'CASH_IN') {
+      u.wallets.MMK += amount;
+      db.txs.unshift({
+        tx_type: 'DIRECT_CASH_IN',
+        sender_phone: `${channel} (${targetPhone})`,
+        receiver_phone: `KhaoPay (${u.phoneE164})`,
+        currency: 'MMK',
+        amount,
+        note: 'Direct KPay/WavePay Deposit'
+      });
+      showMsg(`${channel} (${targetPhone}) မှ ${amount.toLocaleString()} MMK ထည့်ပြီးပါပြီ။`);
+    } else {
+      if (u.wallets.MMK < amount) return showMsg('MMK လက်ကျန်ငွေ မလုံလောက်ပါ။');
+      u.wallets.MMK -= amount;
+      db.txs.unshift({
+        tx_type: 'DIRECT_TRANSFER_OUT',
+        sender_phone: `KhaoPay (${u.phoneE164})`,
+        receiver_phone: `${channel} (${targetPhone})`,
+        currency: 'MMK',
+        amount,
+        note: 'Direct KPay/WavePay Transfer'
+      });
+      showMsg(`KhaoPay မှ ${channel} (${targetPhone}) သို့ ${amount.toLocaleString()} MMK တိုက်ရိုက်လွှဲပြီးပါပြီ။`);
+    }
+
+    saveDemoDb(db);
+    currentSession.wallets = u.wallets;
+    currentSession.transactions = db.txs;
+    document.getElementById('cashPin').value = '';
+    renderApp();
+  }
+
+  async function doTransfer() {
+    const receiverCountryCode = document.getElementById('recvCountry').value;
+    const receiverPhone = document.getElementById('recvPhone').value;
+    const currency = document.getElementById('txCurrency').value;
+    const amount = Number(document.getElementById('txAmount').value);
+    const note = document.getElementById('txNote').value.trim();
+    const pin = document.getElementById('txPin').value;
+
+    if (API_BASE) {
+      try {
+        const data = await apiCall('/api/transfer', 'POST', {
+          senderUserId: currentSession.user.id,
+          receiverCountryCode,
+          receiverPhone,
+          currency,
+          amount,
+          note,
+          pin
+        });
+        currentSession = { user: data.user, wallets: data.wallets, kyc: data.kyc, transactions: data.transactions };
+        document.getElementById('txPin').value = '';
+        showMsg(data.message);
+        renderApp();
+        return;
+      } catch (e) {
+        return showMsg(e.message);
+      }
+    }
+
+    const db = getDemoDb();
+    const sender = db.users.find(x => x.id === currentSession.user.id);
+    if (sender.kycStatus !== 'VERIFIED') return showMsg('ငွေလွှဲရန် KYC VERIFIED ဖြစ်ရပါမည်။');
+    if (sender.pin !== pin) return showMsg('လုံခြုံရေး PIN မှားယွင်းနေပါသည်။');
+    if (!(amount > 0)) return showMsg('ပမာဏ မှန်ကန်စွာ ထည့်ပါ။');
+
+    const recvE164 = normPhone(receiverCountryCode, receiverPhone);
+    const receiver = db.users.find(x => x.phoneE164 === recvE164);
+    if (!receiver) return showMsg(`${recvE164} အကောင့် မရှိသေးပါ။`);
+    if (receiver.id === sender.id) return showMsg('မိမိအကောင့်သို့ ပြန်လွှဲ၍ မရပါ။');
+    if (sender.wallets[currency] < amount) return showMsg(`${currency} လက်ကျန်ငွေ မလုံလောက်ပါ။`);
+
+    sender.wallets[currency] -= amount;
+    receiver.wallets[currency] += amount;
+    db.txs.unshift({
+      tx_type: 'P2P_TRANSFER',
+      sender_phone: sender.phoneE164,
+      receiver_phone: receiver.phoneE164,
+      currency,
+      amount,
+      note
+    });
+    saveDemoDb(db);
+    currentSession.wallets = sender.wallets;
+    currentSession.transactions = db.txs;
+    document.getElementById('txPin').value = '';
+    showMsg(`${recvE164} သို့ ${amount} ${currency} လွှဲပြီးပါပြီ။`);
+    renderApp();
+  }
+
+  function updateSwapPreview() {
+    const pair = document.getElementById('swapPair').value;
+    const amt = Number(document.getElementById('swapAmount').value || 0);
+    const preview = document.getElementById('swapPreview');
+    if (pair === 'MMK_TO_THB') {
+      preview.textContent = `Rate: 1 THB = ${THB_TO_MMK_RATE} MMK • ရရှိမည့်ပမာဏ: ${(amt / THB_TO_MMK_RATE).toFixed(2)} THB`;
+    } else {
+      preview.textContent = `Rate: 1 THB = ${THB_TO_MMK_RATE} MMK • ရရှိမည့်ပမာဏ: ${Number((amt * THB_TO_MMK_RATE).toFixed(2)).toLocaleString()} MMK`;
+    }
+  }
+
+  async function doSwap() {
+    const pair = document.getElementById('swapPair').value;
+    const amount = Number(document.getElementById('swapAmount').value);
+    const pin = document.getElementById('swapPin').value;
+
+    if (API_BASE) {
+      try {
+        const data = await apiCall('/api/swap', 'POST', {
+          userId: currentSession.user.id,
+          pair,
+          amount,
+          pin
+        });
+        currentSession = { user: data.user, wallets: data.wallets, kyc: data.kyc, transactions: data.transactions };
+        document.getElementById('swapPin').value = '';
+        showMsg(data.message);
+        renderApp();
+        return;
+      } catch (e) {
+        return showMsg(e.message);
+      }
+    }
+
+    const db = getDemoDb();
+    const u = db.users.find(x => x.id === currentSession.user.id);
+    if (u.kycStatus !== 'VERIFIED') return showMsg('ငွေလဲရန် KYC VERIFIED ဖြစ်ရပါမည်။');
+    if (u.pin !== pin) return showMsg('လုံခြုံရေး PIN မှားယွင်းနေပါသည်။');
+    if (!(amount > 0)) return showMsg('ပမာဏ မှန်ကန်စွာ ထည့်ပါ။');
+
+    if (pair === 'MMK_TO_THB') {
+      if (u.wallets.MMK < amount) return showMsg('MMK လက်ကျန်ငွေ မလုံလောက်ပါ။');
+      const thbOut = Number((amount / THB_TO_MMK_RATE).toFixed(2));
+      u.wallets.MMK -= amount;
+      u.wallets.THB += thbOut;
+      db.txs.unshift({
+        tx_type: 'CURRENCY_SWAP',
+        sender_phone: `${amount.toLocaleString()} MMK`,
+        receiver_phone: `${thbOut.toFixed(2)} THB`,
+        currency: 'THB',
+        amount: thbOut,
+        note: `Rate ${THB_TO_MMK_RATE}`
+      });
+      showMsg(`${amount.toLocaleString()} MMK ကို ${thbOut.toFixed(2)} THB သို့ လဲလှယ်ပြီးပါပြီ။`);
+    } else {
+      if (u.wallets.THB < amount) return showMsg('THB လက်ကျန်ငွေ မလုံလောက်ပါ။');
+      const mmkOut = Number((amount * THB_TO_MMK_RATE).toFixed(2));
+      u.wallets.THB -= amount;
+      u.wallets.MMK += mmkOut;
+      db.txs.unshift({
+        tx_type: 'CURRENCY_SWAP',
+        sender_phone: `${amount.toFixed(2)} THB`,
+        receiver_phone: `${mmkOut.toLocaleString()} MMK`,
+        currency: 'MMK',
+        amount: mmkOut,
+        note: `Rate ${THB_TO_MMK_RATE}`
+      });
+      showMsg(`${amount.toFixed(2)} THB ကို ${mmkOut.toLocaleString()} MMK သို့ လဲလှယ်ပြီးပါပြီ။`);
+    }
+
+    saveDemoDb(db);
+    currentSession.wallets = u.wallets;
+    currentSession.transactions = db.txs;
+    document.getElementById('swapPin').value = '';
+    renderApp();
+  }
+
+  async function openAdminModal() {
+    const panel = document.getElementById('adminPanel');
+    const list = document.getElementById('adminList');
+    panel.classList.remove('hidden');
+
+    if (API_BASE) {
+      try {
+        const d = await apiCall('/api/admin/pending-kyc');
+        let html = '<h4>Pending Myanmar NRC KYC</h4>';
+        if (!d.kycs.length) html += '<div class="sub">Pending KYC မရှိပါ။</div>';
+        d.kycs.forEach(u => {
+          html += `<div class="tx-item">
+            <div><strong>${u.phone_e164}</strong> (${u.phone_country})</div>
+            <div>ID Type: MYANMAR_NRC | NRC: ${u.nrc_normalized}</div>
+            <div class="row">
+              <button class="success" onclick="adminKyc('${u.user_id}','VERIFIED')">Approve</button>
+              <button class="danger" onclick="adminKyc('${u.user_id}','REJECTED')">Reject</button>
+            </div>
+          </div>`;
+        });
+        list.innerHTML = html;
+        return;
+      } catch (e) {
+        list.innerHTML = `<div class="sub">${e.message}</div>`;
+        return;
+      }
+    }
+
+    const db = getDemoDb();
+    const pendingKycs = db.users.filter(u => u.kycStatus === 'PENDING');
+    let html = '<h4>Pending Myanmar NRC KYC</h4>';
+    if (!pendingKycs.length) html += '<div class="sub">Pending KYC မရှိပါ။</div>';
+    pendingKycs.forEach(u => {
+      html += `<div class="tx-item">
+        <div><strong>${u.phoneE164}</strong> (${u.phoneCountry})</div>
+        <div>ID Type: MYANMAR_NRC | NRC: ${u.kyc.nrc}</div>
+        <div class="row">
+          <button class="success" onclick="adminKyc('${u.id}','VERIFIED')">Approve</button>
+          <button class="danger" onclick="adminKyc('${u.id}','REJECTED')">Reject</button>
+        </div>
+      </div>`;
+    });
+    list.innerHTML = html;
+  }
+
+  async function adminKyc(userId, status) {
+    if (API_BASE) {
+      await apiCall('/api/admin/kyc-review', 'POST', { userId, status });
+      const refreshed = await apiCall(`/api/wallet/${currentSession.user.id}`);
+      currentSession = { user: refreshed.user, wallets: refreshed.wallets, kyc: refreshed.kyc, transactions: refreshed.transactions };
+      openAdminModal();
+      renderApp();
+      return;
+    }
+
+    const db = getDemoDb();
+    const u = db.users.find(x => x.id === userId);
+    u.kycStatus = status;
+    if (u.kyc) u.kyc.status = status;
+    saveDemoDb(db);
+    if (currentSession.user.id === userId) currentSession.user.kycStatus = status;
+    openAdminModal();
+    renderApp();
+  }
+
+  function renderApp() {
+    if (!currentSession) return;
+    document.getElementById('authScreen').classList.add('hidden');
+    document.getElementById('mainScreen').classList.remove('hidden');
+    document.getElementById('logoutBtn').classList.remove('hidden');
+
+    document.getElementById('userPhoneText').textContent = `${currentSession.user.phoneE164} (${currentSession.user.phoneCountry})`;
+    const badge = document.getElementById('kycBadge');
+    badge.textContent = currentSession.user.kycStatus;
+    badge.className = 'badge ' + currentSession.user.kycStatus;
+
+    document.getElementById('mmkBal').textContent = Number(currentSession.wallets.MMK || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+    document.getElementById('thbBal').textContent = Number(currentSession.wallets.THB || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+
+    const txs = currentSession.transactions || [];
+    const txEl = document.getElementById('txList');
+    if (!txs.length) {
+      txEl.innerHTML = '<div class="sub">မှတ်တမ်း မရှိသေးပါ။</div>';
+    } else {
+      txEl.innerHTML = txs.map(t => `<div class="tx-item">
+        <div><strong>${t.tx_type}</strong> • ${Number(t.amount).toLocaleString()} ${t.currency}</div>
+        <div class="sub">${t.sender_phone || ''} → ${t.receiver_phone || ''} ${t.note ? '(' + t.note + ')' : ''}</div>
+      </div>`).join('');
+    }
+  }
+</script>
+</body>
+</html>
