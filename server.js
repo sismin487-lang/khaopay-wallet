@@ -25,8 +25,21 @@ const otpStore = new Map();         // phoneE164 -> { code, expiresAt, attempts 
 const pinFailStore = new Map();     // userId -> { fails, lockedUntil }
 const idempotencyStore = new Map(); // key -> { expiresAt, response }
 
-async function ensureExtraTables() {
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of otpStore.entries()) {
+    if (!v || now > v.expiresAt) otpStore.delete(k);
+  }
+  for (const [k, v] of idempotencyStore.entries()) {
+    if (!v || now > v.expiresAt) idempotencyStore.delete(k);
+  }
+}, 60 * 1000).unref();
+
+async function ensureSchemaCompatibility() {
   await pool.query(`
+    ALTER TABLE kyc_submissions ADD COLUMN IF NOT EXISTS phone_e164 TEXT;
+    ALTER TABLE kyc_submissions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+
     CREATE TABLE IF NOT EXISTS cash_requests (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -43,11 +56,15 @@ async function ensureExtraTables() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       reviewed_at TIMESTAMPTZ
     );
+
+    CREATE INDEX IF NOT EXISTS idx_cash_requests_user_id ON cash_requests(user_id);
+    CREATE INDEX IF NOT EXISTS idx_cash_requests_status ON cash_requests(status);
+    CREATE INDEX IF NOT EXISTS idx_cash_requests_phone ON cash_requests(phone_e164);
   `);
 }
 
-ensureExtraTables().catch((err) => {
-  console.error('Failed to ensure cash_requests table:', err.message);
+ensureSchemaCompatibility().catch((err) => {
+  console.error('Schema compatibility check error:', err.message);
 });
 
 function signToken(payload) {
@@ -173,6 +190,17 @@ function normalizePhone(countryCode, rawPhone) {
   throw new Error('Country Code ကို TH သို့မဟုတ် MM သာ ရွေးချယ်ပါ။');
 }
 
+function normalizeAnyPhoneToE164(fallbackCountryCode, rawPhone) {
+  const s = String(rawPhone || '').trim();
+  if (!s) return null;
+  if (s.startsWith('+66')) return normalizePhone('TH', s);
+  if (s.startsWith('+95')) return normalizePhone('MM', s);
+  const digits = s.replace(/\D/g, '');
+  if (digits.startsWith('66')) return normalizePhone('TH', digits);
+  if (digits.startsWith('95')) return normalizePhone('MM', digits);
+  return normalizePhone(fallbackCountryCode, digits);
+}
+
 function normalizeNrc(nrc) {
   return String(nrc || '').trim().toUpperCase().replace(/\s+/g, '');
 }
@@ -189,7 +217,7 @@ async function getFullUserState(dbOrClient, userId) {
     [userId]
   );
   const kycRes = await dbOrClient.query(
-    'SELECT id_type, nrc_normalized, full_name, status, reject_reason FROM kyc_submissions WHERE user_id = $1',
+    'SELECT id_type, phone_e164, nrc_normalized, full_name, status, reject_reason FROM kyc_submissions WHERE user_id = $1',
     [userId]
   );
   const cashReqRes = await dbOrClient.query(
@@ -368,6 +396,7 @@ app.post('/api/kyc/submit', requireAuth, async (req, res) => {
 
     const uRes = await client.query('SELECT id, phone_e164 FROM users WHERE id = $1', [userId]);
     if (uRes.rows.length === 0) throw new Error('User မတွေ့ပါ။');
+    const accountPhone = uRes.rows[0].phone_e164;
 
     const dup = await client.query(
       'SELECT user_id FROM kyc_submissions WHERE nrc_normalized = $1 AND user_id <> $2',
@@ -379,9 +408,10 @@ app.post('/api/kyc/submit', requireAuth, async (req, res) => {
 
     await client.query(
       `INSERT INTO kyc_submissions
-        (user_id, id_type, nrc_normalized, full_name, front_image_url, back_image_url, selfie_image_url, status, reject_reason)
-       VALUES ($1, 'MYANMAR_NRC', $2, $3, $4, $5, $6, 'PENDING', NULL)
+        (user_id, phone_e164, id_type, nrc_normalized, full_name, front_image_url, back_image_url, selfie_image_url, status, reject_reason)
+       VALUES ($1, $2, 'MYANMAR_NRC', $3, $4, $5, $6, $7, 'PENDING', NULL)
        ON CONFLICT (user_id) DO UPDATE SET
+        phone_e164 = EXCLUDED.phone_e164,
         nrc_normalized = EXCLUDED.nrc_normalized,
         full_name = EXCLUDED.full_name,
         front_image_url = EXCLUDED.front_image_url,
@@ -390,7 +420,7 @@ app.post('/api/kyc/submit', requireAuth, async (req, res) => {
         status = 'PENDING',
         reject_reason = NULL,
         created_at = CURRENT_TIMESTAMP`,
-      [userId, nrcNormalized, String(fullName).trim(), frontImageUrl, backImageUrl, selfieImageUrl]
+      [userId, accountPhone, nrcNormalized, String(fullName).trim(), frontImageUrl, backImageUrl, selfieImageUrl]
     );
     await client.query(`UPDATE users SET kyc_status = 'PENDING' WHERE id = $1`, [userId]);
     await client.query('COMMIT');
@@ -399,7 +429,7 @@ app.post('/api/kyc/submit', requireAuth, async (req, res) => {
     const state = await getFullUserState(pool, userId);
     res.json({
       success: true,
-      message: `${uRes.rows[0].phone_e164} အကောင့်အတွက် မြန်မာမှတ်ပုံတင် (NRC) KYC တင်သွင်းပြီးပါပြီ။`,
+      message: `${accountPhone} အကောင့်အတွက် မြန်မာမှတ်ပုံတင် (NRC) KYC တင်သွင်းပြီးပါပြီ။`,
       ...state
     });
   } catch (err) {
@@ -435,7 +465,7 @@ async function callExternalWalletPayout({ channel, phone, amount, refId }) {
   return `MANUAL_${channel}_${Date.now()}`;
 }
 
-// Create KPay / WavePay CASH_IN or CASH_OUT request strictly tied to the logged-in user's registered account phone
+// Create KPay / WavePay CASH_IN or CASH_OUT request strictly bound to the logged-in account's phone number
 app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, res) => {
   const userId = req.authUserId;
   const { type, channel, targetPhone, amount, txRef, slipImageUrl, pin } = req.body;
@@ -447,7 +477,7 @@ app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, r
   if (!['KPAY', 'WAVEPAY'].includes(channel)) {
     return res.status(400).json({ success: false, message: 'KPay သို့မဟုတ် WavePay ကိုသာ ရွေးချယ်ပါ။' });
   }
-  if (!(numAmount > 0)) {
+  if (!Number.isFinite(numAmount) || !(numAmount > 0)) {
     return res.status(400).json({ success: false, message: 'ငွေပမာဏ မှန်ကန်စွာ ထည့်ပါ။' });
   }
 
@@ -458,7 +488,7 @@ app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, r
     await client.query('BEGIN');
     txOpen = true;
 
-    const uRes = await client.query('SELECT id, phone_e164, pin_hash, kyc_status FROM users WHERE id = $1', [userId]);
+    const uRes = await client.query('SELECT id, phone_e164, phone_country, pin_hash, kyc_status FROM users WHERE id = $1', [userId]);
     if (uRes.rows.length === 0) throw new Error('User မတွေ့ပါ။');
     const user = uRes.rows[0];
 
@@ -475,18 +505,29 @@ app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, r
     clearPinFailure(userId);
 
     const accountPhone = user.phone_e164;
-    const effectivePhone = targetPhone && String(targetPhone).trim()
-      ? String(targetPhone).trim()
-      : accountPhone;
+    let effectivePhone = accountPhone;
 
+    if (targetPhone && String(targetPhone).trim()) {
+      const normalizedTarget = normalizeAnyPhoneToE164(user.phone_country, targetPhone);
+      if (normalizedTarget !== accountPhone) {
+        throw new Error(`ဤအကောင့် ဖွင့်ထားသည့် ဖုန်းနံပါတ် (${accountPhone}) နှင့်သာ ကိုက်ညီသော နံပါတ်ကို အသုံးပြုရပါမည်။`);
+      }
+      effectivePhone = normalizedTarget;
+    }
+
+    // Reserve MMK balance on CASH_OUT request so funds cannot be double-spent before admin review
     if (type === 'CASH_OUT') {
       const wRes = await client.query(
-        `SELECT balance FROM wallets WHERE user_id = $1 AND currency = 'MMK'`,
+        `SELECT id, balance FROM wallets WHERE user_id = $1 AND currency = 'MMK' FOR UPDATE`,
         [userId]
       );
       if (wRes.rows.length === 0 || Number(wRes.rows[0].balance) < numAmount) {
         throw new Error('MMK လက်ကျန်ငွေ မလုံလောက်ပါ။');
       }
+      await client.query(
+        `UPDATE wallets SET balance = balance - $1 WHERE id = $2`,
+        [numAmount, wRes.rows[0].id]
+      );
     }
 
     const created = await client.query(
@@ -540,6 +581,21 @@ app.get('/api/admin/pending-cash', requireAdmin, async (req, res) => {
   }
 });
 
+// Admin list recent cash requests (all statuses)
+app.get('/api/admin/cash-requests', requireAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT c.id, c.user_id, c.phone_e164, c.req_type, c.channel, c.target_phone, c.currency, c.amount, c.tx_ref, c.status, c.admin_note, c.created_at, c.reviewed_at
+       FROM cash_requests c
+       ORDER BY c.created_at DESC
+       LIMIT 100`
+    );
+    res.json({ success: true, requests: r.rows });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 // Admin approve or reject CASH_IN / CASH_OUT request for the user's account
 app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, res) => {
   const { requestId, status, adminNote } = req.body;
@@ -566,7 +622,24 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
       throw new Error(`ဤ Request မှာ ${cr.status} ဖြစ်ပြီးသား ဖြစ်ပါသည်။`);
     }
 
+    const wRes = await client.query(
+      `SELECT id, balance FROM wallets WHERE user_id = $1 AND currency = 'MMK' FOR UPDATE`,
+      [cr.user_id]
+    );
+    if (wRes.rows.length === 0) {
+      throw new Error('User ၏ MMK Wallet မတွေ့ပါ။');
+    }
+
+    const amount = Number(cr.amount);
+
     if (status === 'REJECTED') {
+      // Refund reserved MMK if CASH_OUT was rejected
+      if (cr.req_type === 'CASH_OUT') {
+        await client.query(
+          `UPDATE wallets SET balance = balance + $1 WHERE id = $2`,
+          [amount, wRes.rows[0].id]
+        );
+      }
       await client.query(
         `UPDATE cash_requests
          SET status = 'REJECTED', admin_note = $1, reviewed_at = CURRENT_TIMESTAMP
@@ -578,15 +651,6 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
       return res.json({ success: true, message: `Request #${reqIdNum} ကို ပယ်ချပြီးပါပြီ။` });
     }
 
-    const wRes = await client.query(
-      `SELECT id, balance FROM wallets WHERE user_id = $1 AND currency = 'MMK' FOR UPDATE`,
-      [cr.user_id]
-    );
-    if (wRes.rows.length === 0) {
-      throw new Error('User ၏ MMK Wallet မတွေ့ပါ။');
-    }
-
-    const amount = Number(cr.amount);
     if (cr.req_type === 'CASH_IN') {
       await client.query(
         `UPDATE wallets SET balance = balance + $1 WHERE id = $2`,
@@ -602,13 +666,7 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
         ]
       );
     } else if (cr.req_type === 'CASH_OUT') {
-      if (Number(wRes.rows[0].balance) < amount) {
-        throw new Error('အကောင့်၏ MMK လက်ကျန်ငွေ မလုံလောက်ပါ။');
-      }
-      await client.query(
-        `UPDATE wallets SET balance = balance - $1 WHERE id = $2`,
-        [amount, wRes.rows[0].id]
-      );
+      // Balance was already reserved when CASH_OUT request was submitted
       const extTxId = await callExternalWalletPayout({
         channel: cr.channel,
         phone: cr.target_phone,
@@ -653,7 +711,7 @@ app.post('/api/transfer', requireAuth, checkIdempotency, async (req, res) => {
   const { receiverCountryCode, receiverPhone, currency, amount, note, pin } = req.body;
   const numAmount = Number(amount);
 
-  if (!['MMK', 'THB'].includes(currency) || !(numAmount > 0)) {
+  if (!['MMK', 'THB'].includes(currency) || !Number.isFinite(numAmount) || !(numAmount > 0)) {
     return res.status(400).json({ success: false, message: 'ငွေကြေး သို့မဟုတ် ငွေပမာဏ မှားယွင်းနေပါသည်။' });
   }
 
@@ -726,7 +784,7 @@ app.post('/api/swap', requireAuth, checkIdempotency, async (req, res) => {
   const { pair, amount, pin } = req.body;
   const numAmount = Number(amount);
 
-  if (!['MMK_TO_THB', 'THB_TO_MMK'].includes(pair) || !(numAmount > 0)) {
+  if (!['MMK_TO_THB', 'THB_TO_MMK'].includes(pair) || !Number.isFinite(numAmount) || !(numAmount > 0)) {
     return res.status(400).json({ success: false, message: 'ငွေလဲ အချက်အလက် မှားယွင်းနေပါသည်။' });
   }
 
@@ -843,6 +901,17 @@ app.post('/api/admin/kyc-review', requireAdmin, async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+app.use((err, req, res, next) => {
+  if (err && err.type === 'entity.parse.failed') {
+    return res.status(400).json({ success: false, message: 'Request JSON Format မှားယွင်းနေပါသည်။' });
+  }
+  if (err && err.type === 'entity.too.large') {
+    return res.status(413).json({ success: false, message: 'ပေးပို့သော Data ပမာဏ ကြီးလွန်းပါသည်။' });
+  }
+  console.error('Unhandled server error:', err);
+  res.status(500).json({ success: false, message: 'Server တွင် မမျှော်လင့်ထားသော Error ဖြစ်ပွားပါသည်။' });
 });
 
 const PORT = process.env.PORT || 3000;
