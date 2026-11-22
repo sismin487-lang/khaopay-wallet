@@ -91,50 +91,51 @@ async function initDatabase() {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS users (
-          id SERIAL PRIMARY KEY,
-          phone_e164 TEXT UNIQUE NOT NULL,
-          phone_country TEXT NOT NULL CHECK (phone_country IN ('TH', 'MM')),
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          phone_e164 VARCHAR(20) UNIQUE NOT NULL,
+          phone_country VARCHAR(5) NOT NULL CHECK (phone_country IN ('TH', 'MM')),
           pin_hash TEXT NOT NULL,
-          kyc_status TEXT NOT NULL DEFAULT 'UNVERIFIED' CHECK (kyc_status IN ('UNVERIFIED', 'PENDING', 'VERIFIED', 'REJECTED')),
+          kyc_status VARCHAR(20) NOT NULL DEFAULT 'UNVERIFIED' CHECK (kyc_status IN ('UNVERIFIED', 'PENDING', 'VERIFIED', 'REJECTED')),
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
 
-        CREATE TABLE IF NOT EXISTS wallets (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          currency TEXT NOT NULL CHECK (currency IN ('MMK', 'THB')),
-          balance NUMERIC(18, 2) NOT NULL DEFAULT 0 CHECK (balance >= 0),
-          UNIQUE (user_id, currency)
-        );
-
         CREATE TABLE IF NOT EXISTS kyc_submissions (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          phone_e164 TEXT,
-          id_type TEXT NOT NULL DEFAULT 'MYANMAR_NRC',
-          nrc_normalized TEXT UNIQUE NOT NULL,
-          full_name TEXT NOT NULL,
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          phone_e164 VARCHAR(20),
+          id_type VARCHAR(30) NOT NULL DEFAULT 'MYANMAR_NRC',
+          nrc_normalized VARCHAR(60) UNIQUE NOT NULL,
+          full_name VARCHAR(120) NOT NULL,
           front_image_url TEXT NOT NULL,
           back_image_url TEXT NOT NULL,
           selfie_image_url TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'VERIFIED', 'REJECTED')),
+          status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'VERIFIED', 'REJECTED')),
           reject_reason TEXT,
-          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          reviewed_at TIMESTAMPTZ
+          reviewed_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
 
-        ALTER TABLE kyc_submissions ADD COLUMN IF NOT EXISTS phone_e164 TEXT;
+        ALTER TABLE kyc_submissions ADD COLUMN IF NOT EXISTS phone_e164 VARCHAR(20);
         ALTER TABLE kyc_submissions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
 
+        CREATE TABLE IF NOT EXISTS wallets (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          currency VARCHAR(10) NOT NULL CHECK (currency IN ('MMK', 'THB')),
+          balance NUMERIC(18, 2) NOT NULL DEFAULT 0.00 CHECK (balance >= 0),
+          UNIQUE(user_id, currency)
+        );
+
         CREATE TABLE IF NOT EXISTS transactions (
-          id SERIAL PRIMARY KEY,
-          sender_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-          receiver_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-          tx_type TEXT NOT NULL,
-          currency TEXT NOT NULL CHECK (currency IN ('MMK', 'THB')),
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          sender_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          receiver_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          tx_type VARCHAR(30) NOT NULL,
+          currency VARCHAR(10) NOT NULL CHECK (currency IN ('MMK', 'THB')),
           amount NUMERIC(18, 2) NOT NULL CHECK (amount > 0),
           note TEXT,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -147,7 +148,7 @@ async function initDatabase() {
         WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id'
       `);
 
-      let userIdSqlType = 'INTEGER';
+      let userIdSqlType = 'UUID';
       if (idColRes.rows.length > 0) {
         const udt = idColRes.rows[0].udt_name;
         if (udt === 'uuid') userIdSqlType = 'UUID';
@@ -160,24 +161,24 @@ async function initDatabase() {
         CREATE TABLE IF NOT EXISTS cash_requests (
           id SERIAL PRIMARY KEY,
           user_id ${userIdSqlType} NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          phone_e164 TEXT NOT NULL,
-          req_type TEXT NOT NULL CHECK (req_type IN ('CASH_IN', 'CASH_OUT')),
-          channel TEXT NOT NULL CHECK (channel IN ('KPAY', 'WAVEPAY', 'KBZ_BANK')),
-          target_phone TEXT NOT NULL,
-          bank_account_no TEXT,
-          bank_account_name TEXT,
-          currency TEXT NOT NULL DEFAULT 'MMK',
+          phone_e164 VARCHAR(20) NOT NULL,
+          req_type VARCHAR(20) NOT NULL CHECK (req_type IN ('CASH_IN', 'CASH_OUT')),
+          channel VARCHAR(20) NOT NULL CHECK (channel IN ('KPAY', 'WAVEPAY', 'KBZ_BANK')),
+          target_phone VARCHAR(20) NOT NULL,
+          bank_account_no VARCHAR(40),
+          bank_account_name VARCHAR(120),
+          currency VARCHAR(10) NOT NULL DEFAULT 'MMK',
           amount NUMERIC(18, 2) NOT NULL CHECK (amount > 0),
-          tx_ref TEXT,
+          tx_ref VARCHAR(120),
           slip_image_url TEXT,
-          status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')),
+          status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')),
           admin_note TEXT,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           reviewed_at TIMESTAMPTZ
         );
 
-        ALTER TABLE cash_requests ADD COLUMN IF NOT EXISTS bank_account_no TEXT;
-        ALTER TABLE cash_requests ADD COLUMN IF NOT EXISTS bank_account_name TEXT;
+        ALTER TABLE cash_requests ADD COLUMN IF NOT EXISTS bank_account_no VARCHAR(40);
+        ALTER TABLE cash_requests ADD COLUMN IF NOT EXISTS bank_account_name VARCHAR(120);
 
         ALTER TABLE cash_requests DROP CONSTRAINT IF EXISTS cash_requests_channel_check;
         ALTER TABLE cash_requests ADD CONSTRAINT cash_requests_channel_check
@@ -1063,8 +1064,9 @@ async function executeP2PTransfer(client, { senderUserId, receiverE164, currency
   await ensureUserWallets(client, senderUserId);
   await ensureUserWallets(client, receiverId);
 
-  const firstId = senderUserId < receiverId ? senderUserId : receiverId;
-  const secondId = senderUserId < receiverId ? receiverId : senderUserId;
+  const [firstId, secondId] = String(senderUserId) < String(receiverId)
+    ? [senderUserId, receiverId]
+    : [receiverId, senderUserId];
 
   await client.query(`SELECT id, balance FROM wallets WHERE user_id = $1 AND currency = $2 FOR UPDATE`, [firstId, currency]);
   await client.query(`SELECT id, balance FROM wallets WHERE user_id = $1 AND currency = $2 FOR UPDATE`, [secondId, currency]);
@@ -1258,8 +1260,7 @@ app.get('/api/admin/pending-kyc', requireAdmin, async (req, res) => {
 
 app.post('/api/admin/kyc-review', requireAdmin, async (req, res) => {
   const { userId, status, rejectReason } = req.body;
-  const uidNum = Number(userId);
-  if (!Number.isInteger(uidNum) || uidNum <= 0 || !['VERIFIED', 'REJECTED'].includes(status)) {
+  if (!userId || !['VERIFIED', 'REJECTED'].includes(status)) {
     return res.status(400).json({ success: false, message: 'userId နှင့် status (VERIFIED / REJECTED) ထည့်ပါ။' });
   }
 
@@ -1270,19 +1271,19 @@ app.post('/api/admin/kyc-review', requireAdmin, async (req, res) => {
     await client.query('BEGIN');
     txOpen = true;
 
-    const uCheck = await client.query('SELECT id, phone_e164 FROM users WHERE id = $1', [uidNum]);
+    const uCheck = await client.query('SELECT id, phone_e164 FROM users WHERE id = $1', [String(userId)]);
     if (uCheck.rows.length === 0) throw new Error('User အကောင့် မတွေ့ပါ။');
 
-    const kCheck = await client.query('SELECT id FROM kyc_submissions WHERE user_id = $1', [uidNum]);
+    const kCheck = await client.query('SELECT id FROM kyc_submissions WHERE user_id = $1', [String(userId)]);
     if (kCheck.rows.length === 0) throw new Error('ဤ User အတွက် KYC တင်ထားခြင်း မရှိသေးပါ။');
 
     await client.query(
       `UPDATE kyc_submissions
        SET status = $1, reject_reason = $2, reviewed_at = CURRENT_TIMESTAMP
        WHERE user_id = $3`,
-      [status, status === 'REJECTED' ? (sanitizeText(rejectReason, 250) || 'Rejected') : null, uidNum]
+      [status, status === 'REJECTED' ? (sanitizeText(rejectReason, 250) || 'Rejected') : null, String(userId)]
     );
-    await client.query(`UPDATE users SET kyc_status = $1 WHERE id = $2`, [status, uidNum]);
+    await client.query(`UPDATE users SET kyc_status = $1 WHERE id = $2`, [status, String(userId)]);
     await client.query('COMMIT');
     txOpen = false;
 
@@ -1308,7 +1309,7 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
        FROM users u
        LEFT JOIN wallets w ON u.id = w.user_id
        GROUP BY u.id
-       ORDER BY u.id DESC
+       ORDER BY u.created_at DESC
        LIMIT 100`
     );
     res.json({ success: true, users: r.rows });
@@ -1319,8 +1320,7 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
 
 app.post('/api/admin/adjust-balance', requireAdmin, checkIdempotency, async (req, res) => {
   const { userId, currency, action, amount, note } = req.body;
-  const uidNum = Number(userId);
-  if (!Number.isInteger(uidNum) || uidNum <= 0) {
+  if (!userId) {
     return res.status(400).json({ success: false, message: 'userId မှန်ကန်စွာ ထည့်ပါ။' });
   }
   if (!['MMK', 'THB'].includes(currency)) {
@@ -1339,13 +1339,13 @@ app.post('/api/admin/adjust-balance', requireAdmin, checkIdempotency, async (req
     await client.query('BEGIN');
     txOpen = true;
 
-    const uRes = await client.query('SELECT id, phone_e164 FROM users WHERE id = $1', [uidNum]);
+    const uRes = await client.query('SELECT id, phone_e164 FROM users WHERE id = $1', [String(userId)]);
     if (uRes.rows.length === 0) throw new Error('User မတွေ့ပါ။');
 
-    await ensureUserWallets(client, uidNum);
+    await ensureUserWallets(client, String(userId));
     const wRes = await client.query(
       `SELECT id, balance FROM wallets WHERE user_id = $1 AND currency = $2 FOR UPDATE`,
-      [uidNum, currency]
+      [String(userId), currency]
     );
     const curBal = roundMoney(wRes.rows[0].balance);
 
@@ -1359,8 +1359,8 @@ app.post('/api/admin/adjust-balance', requireAdmin, checkIdempotency, async (req
       `INSERT INTO transactions (sender_user_id, receiver_user_id, tx_type, currency, amount, note)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [
-        action === 'DEBIT' ? uidNum : null,
-        action === 'CREDIT' ? uidNum : null,
+        action === 'DEBIT' ? String(userId) : null,
+        action === 'CREDIT' ? String(userId) : null,
         action === 'CREDIT' ? 'ADMIN_CREDIT' : 'ADMIN_DEBIT',
         currency,
         numAmount,
@@ -1395,4 +1395,8 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`KhaoPay server running on port ${PORT}`));
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => console.log(`KhaoPay server running on port ${PORT}`));
+}
+
+module.exports = app;
