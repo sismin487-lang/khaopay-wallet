@@ -1,8 +1,11 @@
 {
   "name": "khaopay-wallet",
   "version": "1.0.0",
-  "description": "KhaoPay TH/MM E-Wallet with KPay and WavePay direct flow",
+  "description": "KhaoPay TH/MM E-Wallet with KPay, WavePay, KBZ Bank, and QR flow",
   "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node server.js"
   },
