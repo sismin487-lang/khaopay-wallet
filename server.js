@@ -35,7 +35,11 @@ setInterval(() => {
   }
 }, 60 * 1000).unref();
 
+let dbInitialized = false;
+
 async function initDatabase() {
+  if (dbInitialized) return;
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -73,9 +77,37 @@ async function initDatabase() {
     ALTER TABLE kyc_submissions ADD COLUMN IF NOT EXISTS phone_e164 TEXT;
     ALTER TABLE kyc_submissions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
 
+    CREATE TABLE IF NOT EXISTS transactions (
+      id SERIAL PRIMARY KEY,
+      sender_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      receiver_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      tx_type TEXT NOT NULL,
+      currency TEXT NOT NULL CHECK (currency IN ('MMK', 'THB')),
+      amount NUMERIC(18, 2) NOT NULL CHECK (amount > 0),
+      note TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  const idColRes = await pool.query(`
+    SELECT data_type, udt_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id'
+  `);
+
+  let userIdSqlType = 'INTEGER';
+  if (idColRes.rows.length > 0) {
+    const udt = idColRes.rows[0].udt_name;
+    if (udt === 'uuid') userIdSqlType = 'UUID';
+    else if (udt === 'int8') userIdSqlType = 'BIGINT';
+    else if (udt === 'int4') userIdSqlType = 'INTEGER';
+    else if (udt === 'text' || udt === 'varchar') userIdSqlType = 'TEXT';
+  }
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS cash_requests (
       id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_id ${userIdSqlType} NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       phone_e164 TEXT NOT NULL,
       req_type TEXT NOT NULL CHECK (req_type IN ('CASH_IN', 'CASH_OUT')),
       channel TEXT NOT NULL CHECK (channel IN ('KPAY', 'WAVEPAY')),
@@ -90,23 +122,14 @@ async function initDatabase() {
       reviewed_at TIMESTAMPTZ
     );
 
-    CREATE TABLE IF NOT EXISTS transactions (
-      id SERIAL PRIMARY KEY,
-      sender_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      receiver_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      tx_type TEXT NOT NULL,
-      currency TEXT NOT NULL CHECK (currency IN ('MMK', 'THB')),
-      amount NUMERIC(18, 2) NOT NULL CHECK (amount > 0),
-      note TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
     CREATE INDEX IF NOT EXISTS idx_cash_requests_user_id ON cash_requests(user_id);
     CREATE INDEX IF NOT EXISTS idx_cash_requests_status ON cash_requests(status);
     CREATE INDEX IF NOT EXISTS idx_cash_requests_phone ON cash_requests(phone_e164);
     CREATE INDEX IF NOT EXISTS idx_transactions_sender ON transactions(sender_user_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_receiver ON transactions(receiver_user_id);
   `);
+
+  dbInitialized = true;
 }
 
 initDatabase().catch((err) => {
@@ -315,6 +338,7 @@ app.get('/api/config', (req, res) => {
 
 app.post('/api/auth/send-otp', async (req, res) => {
   try {
+    await initDatabase();
     const { countryCode, phone } = req.body;
     const phoneE164 = normalizePhone(countryCode, phone);
     const code = String(crypto.randomInt(100000, 999999));
@@ -333,7 +357,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
       expiresInSeconds: 300,
       message: providerRes.delivered
         ? `${phoneE164} သို့ OTP ပို့ပြီးပါပြီ (၅ မိနစ်အတွင်း အသုံးပြုပါ)။`
-        : `${phoneE164} အတွက် OTP ထုတ်ပေးပြီးပါပြီ (OTP Gateway မချိတ်ရသေး၍ Test OTP: ${code})`
+        : `${phoneE164} အတွက် OTP ထုတ်ပေးပြီးပါပြီ (Test OTP: ${code})`
     };
 
     if (!providerRes.delivered) {
@@ -361,7 +385,7 @@ app.post('/api/auth/register-or-login', async (req, res) => {
     const otpRec = otpStore.get(phoneE164);
 
     if (!otpRec || Date.now() > otpRec.expiresAt) {
-      return res.status(400).json({ success: false, message: 'OTP သက်တမ်းကုန်သွားပါပြီ (သို့မဟုတ် OTP အသစ်ပြန်တောင်းပါ)။' });
+      return res.status(400).json({ success: false, message: 'OTP သက်တမ်းကုန်သွားပါပြီ။ OTP အသစ်ပြန်တောင်းပါ။' });
     }
     if (otpRec.attempts >= 5) {
       otpStore.delete(phoneE164);
@@ -440,13 +464,14 @@ app.post('/api/kyc/submit', requireAuth, async (req, res) => {
   const userId = req.authUserId;
   const { fullName, nrcNumber, frontImageUrl, backImageUrl, selfieImageUrl } = req.body;
   if (!fullName || !nrcNumber || !frontImageUrl || !backImageUrl || !selfieImageUrl) {
-    return res.status(400).json({ success: false, message: 'အမည်၊ မှတ်ပုံတင်နံပါတ်နှင့် ဓာတ်ပုံ ၃ ပုံလုံး ပြည့်စုံစွာ ထည့်ပါ။' });
+    return res.status(400).json({ success: false, message: 'အမည်၊ မှတ်ပုံတင်နံပါတ်နှင့် ဓာတ်ပုံ ၃ ပုံလုံး ထည့်ပါ။' });
   }
 
   const nrcNormalized = normalizeNrc(nrcNumber);
   const client = await pool.connect();
   let txOpen = false;
   try {
+    await initDatabase();
     await client.query('BEGIN');
     txOpen = true;
 
@@ -459,7 +484,7 @@ app.post('/api/kyc/submit', requireAuth, async (req, res) => {
       [nrcNormalized, userId]
     );
     if (dup.rows.length > 0) {
-      throw new Error('ဤမြန်မာမှတ်ပုံတင်နံပါတ်ကို အခြားအကောင့်တစ်ခုတွင် သုံးထားပြီး ဖြစ်ပါသည်။');
+      throw new Error('ဤမှတ်ပုံတင်နံပါတ်ကို အခြားအကောင့်တွင် သုံးထားပြီး ဖြစ်ပါသည်။');
     }
 
     await client.query(
@@ -485,7 +510,7 @@ app.post('/api/kyc/submit', requireAuth, async (req, res) => {
     const state = await getFullUserState(pool, userId);
     res.json({
       success: true,
-      message: `${accountPhone} အကောင့်အတွက် မြန်မာမှတ်ပုံတင် (NRC) KYC တင်သွင်းပြီးပါပြီ။`,
+      message: `${accountPhone} အကောင့်အတွက် KYC တင်ပြီးပါပြီ။`,
       ...state
     });
   } catch (err) {
@@ -514,7 +539,7 @@ async function callExternalWalletPayout({ channel, phone, amount, refId }) {
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok || data.success === false) {
-      throw new Error(data.message || `${channel} တိုက်ရိုက် ငွေလွှဲမှု မအောင်မြင်ပါ။`);
+      throw new Error(data.message || `${channel} ငွေလွှဲမှု မအောင်မြင်ပါ။`);
     }
     return data.transaction_id || refId;
   }
@@ -530,7 +555,7 @@ app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, r
     return res.status(400).json({ success: false, message: 'လုပ်ဆောင်ချက် မှားယွင်းနေပါသည်။' });
   }
   if (!['KPAY', 'WAVEPAY'].includes(channel)) {
-    return res.status(400).json({ success: false, message: 'KPay သို့မဟုတ် WavePay ကိုသာ ရွေးချယ်ပါ။' });
+    return res.status(400).json({ success: false, message: 'KPay သို့မဟုတ် WavePay ရွေးချယ်ပါ။' });
   }
   if (!Number.isFinite(numAmount) || !(numAmount > 0)) {
     return res.status(400).json({ success: false, message: 'ငွေပမာဏ မှန်ကန်စွာ ထည့်ပါ။' });
@@ -539,6 +564,7 @@ app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, r
   const client = await pool.connect();
   let txOpen = false;
   try {
+    await initDatabase();
     assertPinNotLocked(userId);
     await client.query('BEGIN');
     txOpen = true;
@@ -548,14 +574,14 @@ app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, r
     const user = uRes.rows[0];
 
     if (user.kyc_status !== 'VERIFIED') {
-      throw new Error('KPay / WavePay ဝန်ဆောင်မှုသုံးရန် မြန်မာမှတ်ပုံတင် (KYC) VERIFIED ဖြစ်ရပါမည်။');
+      throw new Error('KYC VERIFIED ဖြစ်ပြီးမှ အသုံးပြုနိုင်ပါမည်။');
     }
     const pinOk = await bcrypt.compare(String(pin || ''), user.pin_hash);
     if (!pinOk) {
       recordPinFailure(userId);
       await client.query('COMMIT');
       txOpen = false;
-      return res.status(401).json({ success: false, message: 'လုံခြုံရေး PIN မှားယွင်းနေပါသည်။' });
+      return res.status(401).json({ success: false, message: 'PIN မှားယွင်းနေပါသည်။' });
     }
     clearPinFailure(userId);
 
@@ -565,7 +591,7 @@ app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, r
     if (targetPhone && String(targetPhone).trim()) {
       const normalizedTarget = normalizeAnyPhoneToE164(user.phone_country, targetPhone);
       if (normalizedTarget !== accountPhone) {
-        throw new Error(`ဤအကောင့် ဖွင့်ထားသည့် ဖုန်းနံပါတ် (${accountPhone}) နှင့်သာ ကိုက်ညီသော နံပါတ်ကို အသုံးပြုရပါမည်။`);
+        throw new Error(`အကောင့်ဖုန်းနံပါတ် (${accountPhone}) နှင့်သာ ကိုက်ညီသော နံပါတ်ကို သုံးပါ။`);
       }
       effectivePhone = normalizedTarget;
     }
@@ -607,8 +633,8 @@ app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, r
     const state = await getFullUserState(pool, userId);
     const msg =
       type === 'CASH_IN'
-        ? `${accountPhone} အကောင့်အတွက် ${channel} ငွေသွင်း (${numAmount.toLocaleString()} MMK) Request တင်ပြီးပါပြီ။ Admin Approve လုပ်ပြီးမှ Balance တက်ပါမည်။`
-        : `${accountPhone} အကောင့်မှ ${channel} (${effectivePhone}) သို့ ${numAmount.toLocaleString()} MMK ငွေထုတ် Request တင်ပြီးပါပြီ။`;
+        ? `${accountPhone} (${channel}) ငွေသွင်း ${numAmount.toLocaleString()} MMK တင်ပြီးပါပြီ။`
+        : `${accountPhone} (${channel}) ငွေထုတ် ${numAmount.toLocaleString()} MMK တင်ပြီးပါပြီ။`;
 
     res.json({ success: true, message: msg, request: created.rows[0], ...state });
   } catch (err) {
@@ -621,6 +647,7 @@ app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, r
 
 app.get('/api/admin/pending-cash', requireAdmin, async (req, res) => {
   try {
+    await initDatabase();
     const r = await pool.query(
       `SELECT c.id, c.user_id, c.phone_e164, c.req_type, c.channel, c.target_phone, c.currency, c.amount, c.tx_ref, c.status, c.created_at, u.kyc_status
        FROM cash_requests c
@@ -636,6 +663,7 @@ app.get('/api/admin/pending-cash', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/cash-requests', requireAdmin, async (req, res) => {
   try {
+    await initDatabase();
     const r = await pool.query(
       `SELECT c.id, c.user_id, c.phone_e164, c.req_type, c.channel, c.target_phone, c.currency, c.amount, c.tx_ref, c.status, c.admin_note, c.created_at, c.reviewed_at
        FROM cash_requests c
@@ -652,12 +680,13 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
   const { requestId, status, adminNote } = req.body;
   const reqIdNum = Number(requestId);
   if (!Number.isInteger(reqIdNum) || reqIdNum <= 0 || !['APPROVED', 'REJECTED'].includes(status)) {
-    return res.status(400).json({ success: false, message: 'requestId နှင့် status (APPROVED / REJECTED) မှန်ကန်စွာ ထည့်ပါ။' });
+    return res.status(400).json({ success: false, message: 'requestId နှင့် status (APPROVED / REJECTED) ထည့်ပါ။' });
   }
 
   const client = await pool.connect();
   let txOpen = false;
   try {
+    await initDatabase();
     await client.query('BEGIN');
     txOpen = true;
 
@@ -665,21 +694,15 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
       `SELECT * FROM cash_requests WHERE id = $1 FOR UPDATE`,
       [reqIdNum]
     );
-    if (crRes.rows.length === 0) {
-      throw new Error('Cash Request မတွေ့ပါ။');
-    }
+    if (crRes.rows.length === 0) throw new Error('Cash Request မတွေ့ပါ။');
     const cr = crRes.rows[0];
-    if (cr.status !== 'PENDING') {
-      throw new Error(`ဤ Request မှာ ${cr.status} ဖြစ်ပြီးသား ဖြစ်ပါသည်။`);
-    }
+    if (cr.status !== 'PENDING') throw new Error(`ဤ Request မှာ ${cr.status} ဖြစ်ပြီးသား ဖြစ်ပါသည်။`);
 
     const wRes = await client.query(
       `SELECT id, balance FROM wallets WHERE user_id = $1 AND currency = 'MMK' FOR UPDATE`,
       [cr.user_id]
     );
-    if (wRes.rows.length === 0) {
-      throw new Error('User ၏ MMK Wallet မတွေ့ပါ။');
-    }
+    if (wRes.rows.length === 0) throw new Error('User ၏ MMK Wallet မတွေ့ပါ။');
 
     const amount = Number(cr.amount);
 
@@ -694,7 +717,7 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
         `UPDATE cash_requests
          SET status = 'REJECTED', admin_note = $1, reviewed_at = CURRENT_TIMESTAMP
          WHERE id = $2`,
-        [adminNote || 'Admin မှ ပယ်ချခဲ့ပါသည်။', reqIdNum]
+        [adminNote || 'Rejected', reqIdNum]
       );
       await client.query('COMMIT');
       txOpen = false;
@@ -712,7 +735,7 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
         [
           cr.user_id,
           amount,
-          `Approved ${cr.channel} (${cr.phone_e164}) • Ref: ${cr.tx_ref || 'REQ-' + cr.id}`
+          `${cr.channel} (${cr.phone_e164}) • Ref: ${cr.tx_ref || 'REQ-' + cr.id}`
         ]
       );
     } else if (cr.req_type === 'CASH_OUT') {
@@ -728,7 +751,7 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
         [
           cr.user_id,
           amount,
-          `Approved ${cr.channel} (${cr.target_phone}) • Tx: ${extTxId}`
+          `${cr.channel} (${cr.target_phone}) • Tx: ${extTxId}`
         ]
       );
     }
@@ -745,7 +768,7 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
 
     res.json({
       success: true,
-      message: `${cr.phone_e164} အကောင့်၏ ${cr.req_type} (${amount.toLocaleString()} MMK) ကို Approve လုပ်ပြီးပါပြီ။`
+      message: `${cr.phone_e164} (${cr.channel}) ${amount.toLocaleString()} MMK Approve ပြီးပါပြီ။`
     });
   } catch (err) {
     if (txOpen) await client.query('ROLLBACK').catch(() => {});
@@ -767,6 +790,7 @@ app.post('/api/transfer', requireAuth, checkIdempotency, async (req, res) => {
   const client = await pool.connect();
   let txOpen = false;
   try {
+    await initDatabase();
     assertPinNotLocked(senderUserId);
     await client.query('BEGIN');
     txOpen = true;
@@ -776,14 +800,14 @@ app.post('/api/transfer', requireAuth, checkIdempotency, async (req, res) => {
     const sender = sRes.rows[0];
 
     if (sender.kyc_status !== 'VERIFIED') {
-      throw new Error('ငွေလွှဲရန် မြန်မာမှတ်ပုံတင် (KYC) VERIFIED ဖြစ်ရပါမည်။');
+      throw new Error('KYC VERIFIED ဖြစ်ပြီးမှ ငွေလွှဲနိုင်ပါမည်။');
     }
     const pinOk = await bcrypt.compare(String(pin || ''), sender.pin_hash);
     if (!pinOk) {
       recordPinFailure(senderUserId);
       await client.query('COMMIT');
       txOpen = false;
-      return res.status(401).json({ success: false, message: 'လုံခြုံရေး PIN မှားယွင်းနေပါသည်။' });
+      return res.status(401).json({ success: false, message: 'PIN မှားယွင်းနေပါသည်။' });
     }
     clearPinFailure(senderUserId);
 
@@ -840,6 +864,7 @@ app.post('/api/swap', requireAuth, checkIdempotency, async (req, res) => {
   const client = await pool.connect();
   let txOpen = false;
   try {
+    await initDatabase();
     assertPinNotLocked(userId);
     await client.query('BEGIN');
     txOpen = true;
@@ -848,14 +873,14 @@ app.post('/api/swap', requireAuth, checkIdempotency, async (req, res) => {
     if (uRes.rows.length === 0) throw new Error('User မတွေ့ပါ။');
     const user = uRes.rows[0];
     if (user.kyc_status !== 'VERIFIED') {
-      throw new Error('ငွေလဲရန် မြန်မာမှတ်ပုံတင် (KYC) VERIFIED ဖြစ်ရပါမည်။');
+      throw new Error('KYC VERIFIED ဖြစ်ပြီးမှ ငွေလဲနိုင်ပါမည်။');
     }
     const pinOk = await bcrypt.compare(String(pin || ''), user.pin_hash);
     if (!pinOk) {
       recordPinFailure(userId);
       await client.query('COMMIT');
       txOpen = false;
-      return res.status(401).json({ success: false, message: 'လုံခြုံရေး PIN မှားယွင်းနေပါသည်။' });
+      return res.status(401).json({ success: false, message: 'PIN မှားယွင်းနေပါသည်။' });
     }
     clearPinFailure(userId);
 
@@ -903,6 +928,7 @@ app.post('/api/swap', requireAuth, checkIdempotency, async (req, res) => {
 
 app.get('/api/admin/pending-kyc', requireAdmin, async (req, res) => {
   try {
+    await initDatabase();
     const r = await pool.query(
       `SELECT k.user_id, k.id_type, k.nrc_normalized, k.full_name, k.status, u.phone_e164, u.phone_country
        FROM kyc_submissions k JOIN users u ON k.user_id = u.id
@@ -918,23 +944,22 @@ app.post('/api/admin/kyc-review', requireAdmin, async (req, res) => {
   const { userId, status, rejectReason } = req.body;
   const uidNum = Number(userId);
   if (!Number.isInteger(uidNum) || uidNum <= 0 || !['VERIFIED', 'REJECTED'].includes(status)) {
-    return res.status(400).json({ success: false, message: 'userId နှင့် status (VERIFIED / REJECTED) မှန်ကန်စွာ ထည့်ပါ။' });
+    return res.status(400).json({ success: false, message: 'userId နှင့် status (VERIFIED / REJECTED) ထည့်ပါ။' });
   }
 
   const client = await pool.connect();
   let txOpen = false;
   try {
+    await initDatabase();
     await client.query('BEGIN');
     txOpen = true;
 
     const uCheck = await client.query('SELECT id, phone_e164 FROM users WHERE id = $1', [uidNum]);
-    if (uCheck.rows.length === 0) {
-      throw new Error('User အကောင့် မတွေ့ပါ။');
-    }
+    if (uCheck.rows.length === 0) throw new Error('User အကောင့် မတွေ့ပါ။');
 
     await client.query(
       `UPDATE kyc_submissions SET status = $1, reject_reason = $2, reviewed_at = CURRENT_TIMESTAMP WHERE user_id = $3`,
-      [status, status === 'REJECTED' ? (rejectReason || 'အချက်အလက် မကိုက်ညီပါ။') : null, uidNum]
+      [status, status === 'REJECTED' ? (rejectReason || 'Rejected') : null, uidNum]
     );
     await client.query(`UPDATE users SET kyc_status = $1 WHERE id = $2`, [status, uidNum]);
     await client.query('COMMIT');
@@ -942,7 +967,7 @@ app.post('/api/admin/kyc-review', requireAdmin, async (req, res) => {
 
     res.json({
       success: true,
-      message: `${uCheck.rows[0].phone_e164} အကောင့်၏ KYC ကို ${status} ပြောင်းပြီးပါပြီ။`
+      message: `${uCheck.rows[0].phone_e164} KYC ${status} ဖြစ်ပါပြီ။`
     });
   } catch (err) {
     if (txOpen) await client.query('ROLLBACK').catch(() => {});
@@ -957,10 +982,10 @@ app.use((err, req, res, next) => {
     return res.status(400).json({ success: false, message: 'Request JSON Format မှားယွင်းနေပါသည်။' });
   }
   if (err && err.type === 'entity.too.large') {
-    return res.status(413).json({ success: false, message: 'ပေးပို့သော Data ပမာဏ ကြီးလွန်းပါသည်။' });
+    return res.status(413).json({ success: false, message: 'Data ပမာဏ ကြီးလွန်းပါသည်။' });
   }
   console.error('Unhandled server error:', err);
-  res.status(500).json({ success: false, message: 'Server တွင် မမျှော်လင့်ထားသော Error ဖြစ်ပွားပါသည်။' });
+  res.status(500).json({ success: false, message: 'Server Error ဖြစ်ပွားပါသည်။' });
 });
 
 const PORT = process.env.PORT || 3000;
