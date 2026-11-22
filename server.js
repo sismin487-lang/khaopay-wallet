@@ -29,11 +29,6 @@ const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_OTP_CHAT_ID = process.env.TELEGRAM_OTP_CHAT_ID || '';
 
-// KBZ Bank Reserve / Receiving Account Config
-const KBZ_ACCOUNT_NAME = process.env.KBZ_ACCOUNT_NAME || 'KhaoPay Reserve Account';
-const KBZ_ACCOUNT_NUMBER = process.env.KBZ_ACCOUNT_NUMBER || '';
-const KBZ_BANK_NOTE = process.env.KBZ_BANK_NOTE || 'KBZ Bank Transfer / Mobile Banking';
-
 const OTP_TTL_MS = 5 * 60 * 1000;
 const MAX_PIN_ATTEMPTS = 5;
 const PIN_LOCK_MS = 15 * 60 * 1000;
@@ -163,10 +158,8 @@ async function initDatabase() {
           user_id ${userIdSqlType} NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           phone_e164 VARCHAR(20) NOT NULL,
           req_type VARCHAR(20) NOT NULL CHECK (req_type IN ('CASH_IN', 'CASH_OUT')),
-          channel VARCHAR(20) NOT NULL CHECK (channel IN ('KPAY', 'WAVEPAY', 'KBZ_BANK')),
+          channel VARCHAR(20) NOT NULL CHECK (channel IN ('KPAY', 'WAVEPAY')),
           target_phone VARCHAR(20) NOT NULL,
-          bank_account_no VARCHAR(40),
-          bank_account_name VARCHAR(120),
           currency VARCHAR(10) NOT NULL DEFAULT 'MMK',
           amount NUMERIC(18, 2) NOT NULL CHECK (amount > 0),
           tx_ref VARCHAR(120),
@@ -176,13 +169,6 @@ async function initDatabase() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           reviewed_at TIMESTAMPTZ
         );
-
-        ALTER TABLE cash_requests ADD COLUMN IF NOT EXISTS bank_account_no VARCHAR(40);
-        ALTER TABLE cash_requests ADD COLUMN IF NOT EXISTS bank_account_name VARCHAR(120);
-
-        ALTER TABLE cash_requests DROP CONSTRAINT IF EXISTS cash_requests_channel_check;
-        ALTER TABLE cash_requests ADD CONSTRAINT cash_requests_channel_check
-          CHECK (channel IN ('KPAY', 'WAVEPAY', 'KBZ_BANK'));
 
         CREATE INDEX IF NOT EXISTS idx_cash_requests_user_id ON cash_requests(user_id);
         CREATE INDEX IF NOT EXISTS idx_cash_requests_status ON cash_requests(status);
@@ -393,14 +379,6 @@ function normalizeAnyPhoneToE164(fallbackCountryCode, rawPhone) {
   return normalizePhone(fallbackCountryCode, digits);
 }
 
-function normalizeBankAccountNo(rawAcct) {
-  const cleaned = String(rawAcct || '').replace(/[^0-9A-Za-z-]/g, '').trim();
-  if (!cleaned || cleaned.length < 6 || cleaned.length > 30) {
-    throw new Error('KBZ ဘဏ်အကောင့်နံပါတ် မှန်ကန်စွာ ထည့်သွင်းပါ။');
-  }
-  return cleaned;
-}
-
 function normalizeNrc(nrc) {
   return String(nrc || '').trim().toUpperCase().replace(/\s+/g, '');
 }
@@ -430,7 +408,7 @@ async function getFullUserState(dbOrClient, userId) {
     [userId]
   );
   const cashReqRes = await dbOrClient.query(
-    `SELECT id, phone_e164, req_type, channel, target_phone, bank_account_no, bank_account_name, currency, amount, tx_ref, status, admin_note, created_at, reviewed_at
+    `SELECT id, phone_e164, req_type, channel, target_phone, currency, amount, tx_ref, status, admin_note, created_at, reviewed_at
      FROM cash_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 30`,
     [userId]
   );
@@ -473,27 +451,9 @@ app.get('/api/config', (req, res) => {
     success: true,
     rate: THB_TO_MMK_RATE,
     maxTxAmount: MAX_TX_AMOUNT,
-    kbzBank: {
-      enabled: Boolean(KBZ_ACCOUNT_NUMBER || process.env.KBZ_PAYOUT_URL),
-      accountName: KBZ_ACCOUNT_NAME,
-      accountNumber: KBZ_ACCOUNT_NUMBER,
-      note: KBZ_BANK_NOTE
-    },
+    channels: ['KPAY', 'WAVEPAY'],
     otpGatewayConfigured: Boolean((TELEGRAM_BOT_TOKEN && TELEGRAM_OTP_CHAT_ID) || process.env.OTP_WEBHOOK_URL),
-    payoutGatewayConfigured: Boolean(
-      (process.env.PAYMENT_GATEWAY_URL && process.env.PAYMENT_GATEWAY_KEY) ||
-      (process.env.KBZ_PAYOUT_URL && process.env.KBZ_PAYOUT_KEY)
-    )
-  });
-});
-
-app.get('/api/bank/kbz-info', requireAuth, (req, res) => {
-  res.json({
-    success: true,
-    bank: 'KBZ_BANK',
-    accountName: KBZ_ACCOUNT_NAME,
-    accountNumber: KBZ_ACCOUNT_NUMBER,
-    note: KBZ_BANK_NOTE
+    payoutGatewayConfigured: Boolean(process.env.PAYMENT_GATEWAY_URL && process.env.PAYMENT_GATEWAY_KEY)
   });
 });
 
@@ -720,32 +680,7 @@ app.post('/api/kyc/submit', requireAuth, async (req, res) => {
   }
 });
 
-async function callExternalWalletPayout({ channel, phone, bankAccountNo, bankAccountName, amount, refId }) {
-  if (channel === 'KBZ_BANK' && process.env.KBZ_PAYOUT_URL && process.env.KBZ_PAYOUT_KEY) {
-    const baseUrl = String(process.env.KBZ_PAYOUT_URL).replace(/\/+$/, '');
-    const resp = await fetch(`${baseUrl}/payout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.KBZ_PAYOUT_KEY}`
-      },
-      body: JSON.stringify({
-        bank: 'KBZ_BANK',
-        account_number: bankAccountNo,
-        account_name: bankAccountName,
-        phone,
-        amount,
-        currency: 'MMK',
-        reference_id: refId
-      })
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok || data.success === false) {
-      throw new Error(data.message || 'KBZ Bank ငွေလွှဲမှု မအောင်မြင်ပါ။');
-    }
-    return data.transaction_id || refId;
-  }
-
+async function callExternalWalletPayout({ channel, phone, amount, refId }) {
   if (process.env.PAYMENT_GATEWAY_URL && process.env.PAYMENT_GATEWAY_KEY) {
     const baseUrl = String(process.env.PAYMENT_GATEWAY_URL).replace(/\/+$/, '');
     const resp = await fetch(`${baseUrl}/payout`, {
@@ -757,8 +692,6 @@ async function callExternalWalletPayout({ channel, phone, bankAccountNo, bankAcc
       body: JSON.stringify({
         provider: channel,
         receiver_phone: phone,
-        bank_account_no: bankAccountNo || null,
-        bank_account_name: bankAccountName || null,
         amount,
         currency: 'MMK',
         reference_id: refId
@@ -774,16 +707,15 @@ async function callExternalWalletPayout({ channel, phone, bankAccountNo, bankAcc
   return `MANUAL_${channel}_${Date.now()}`;
 }
 
-async function createCashRequestHandler(req, res, forcedChannel = null) {
+app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, res) => {
   const userId = req.authUserId;
-  const { type, targetPhone, bankAccountNo, bankAccountName, amount, txRef, slipImageUrl, pin } = req.body;
-  const channel = forcedChannel || req.body.channel;
+  const { type, channel, targetPhone, amount, txRef, slipImageUrl, pin } = req.body;
 
   if (!['CASH_IN', 'CASH_OUT'].includes(type)) {
     return res.status(400).json({ success: false, message: 'လုပ်ဆောင်ချက် မှားယွင်းနေပါသည်။' });
   }
-  if (!['KPAY', 'WAVEPAY', 'KBZ_BANK'].includes(channel)) {
-    return res.status(400).json({ success: false, message: 'KPay, WavePay သို့မဟုတ် KBZ_BANK ရွေးချယ်ပါ။' });
+  if (!['KPAY', 'WAVEPAY'].includes(channel)) {
+    return res.status(400).json({ success: false, message: 'KPay သို့မဟုတ် WavePay ရွေးချယ်ပါ။' });
   }
 
   const client = await pool.connect();
@@ -791,16 +723,6 @@ async function createCashRequestHandler(req, res, forcedChannel = null) {
   try {
     await initDatabase();
     const numAmount = validateAmount(amount);
-
-    let cleanAcctNo = null;
-    let cleanAcctName = null;
-    if (channel === 'KBZ_BANK') {
-      cleanAcctNo = normalizeBankAccountNo(bankAccountNo);
-      cleanAcctName = sanitizeText(bankAccountName, 120);
-      if (type === 'CASH_OUT' && !cleanAcctName) {
-        throw new Error('KBZ ငွေထုတ်ရန် ဘဏ်အကောင့်ပိုင်ရှင် အမည် ထည့်သွင်းပါ။');
-      }
-    }
 
     await client.query('BEGIN');
     txOpen = true;
@@ -839,17 +761,15 @@ async function createCashRequestHandler(req, res, forcedChannel = null) {
 
     const created = await client.query(
       `INSERT INTO cash_requests
-        (user_id, phone_e164, req_type, channel, target_phone, bank_account_no, bank_account_name, currency, amount, tx_ref, slip_image_url, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'MMK', $8, $9, $10, 'PENDING')
-       RETURNING id, user_id, phone_e164, req_type, channel, target_phone, bank_account_no, bank_account_name, currency, amount, tx_ref, status, created_at`,
+        (user_id, phone_e164, req_type, channel, target_phone, currency, amount, tx_ref, slip_image_url, status)
+       VALUES ($1, $2, $3, $4, $5, 'MMK', $6, $7, $8, 'PENDING')
+       RETURNING id, user_id, phone_e164, req_type, channel, target_phone, currency, amount, tx_ref, status, created_at`,
       [
         userId,
         accountPhone,
         type,
         channel,
         effectivePhone,
-        cleanAcctNo,
-        cleanAcctName,
         numAmount,
         sanitizeText(txRef, 100),
         slipImageUrl ? String(slipImageUrl) : null
@@ -860,11 +780,10 @@ async function createCashRequestHandler(req, res, forcedChannel = null) {
     txOpen = false;
 
     const state = await getFullUserState(pool, userId);
-    const channelLabel = channel === 'KBZ_BANK' ? `KBZ Bank (${cleanAcctNo})` : channel;
     const msg =
       type === 'CASH_IN'
-        ? `${accountPhone} (${channelLabel}) ငွေသွင်း ${numAmount.toLocaleString()} MMK တင်ပြီးပါပြီ။`
-        : `${accountPhone} (${channelLabel}) ငွေထုတ် ${numAmount.toLocaleString()} MMK တင်ပြီးပါပြီ။`;
+        ? `${accountPhone} (${channel}) ငွေသွင်း ${numAmount.toLocaleString()} MMK တင်ပြီးပါပြီ။`
+        : `${accountPhone} (${channel}) ငွေထုတ် ${numAmount.toLocaleString()} MMK တင်ပြီးပါပြီ။`;
 
     res.json({ success: true, message: msg, request: created.rows[0], ...state });
   } catch (err) {
@@ -873,21 +792,13 @@ async function createCashRequestHandler(req, res, forcedChannel = null) {
   } finally {
     client.release();
   }
-}
-
-app.post('/api/wallet/direct-cash', requireAuth, checkIdempotency, async (req, res) => {
-  await createCashRequestHandler(req, res, null);
-});
-
-app.post('/api/wallet/bank-cash', requireAuth, checkIdempotency, async (req, res) => {
-  await createCashRequestHandler(req, res, 'KBZ_BANK');
 });
 
 app.get('/api/admin/pending-cash', requireAdmin, async (req, res) => {
   try {
     await initDatabase();
     const r = await pool.query(
-      `SELECT c.id, c.user_id, c.phone_e164, c.req_type, c.channel, c.target_phone, c.bank_account_no, c.bank_account_name, c.currency, c.amount, c.tx_ref, c.slip_image_url, c.status, c.created_at, u.kyc_status
+      `SELECT c.id, c.user_id, c.phone_e164, c.req_type, c.channel, c.target_phone, c.currency, c.amount, c.tx_ref, c.slip_image_url, c.status, c.created_at, u.kyc_status
        FROM cash_requests c
        JOIN users u ON c.user_id = u.id
        WHERE c.status = 'PENDING'
@@ -906,14 +817,14 @@ app.get('/api/admin/cash-requests', requireAdmin, async (req, res) => {
     const channelFilter = req.query.channel ? String(req.query.channel).toUpperCase() : null;
     const params = [];
     let whereSql = '';
-    if (channelFilter && ['KPAY', 'WAVEPAY', 'KBZ_BANK'].includes(channelFilter)) {
+    if (channelFilter && ['KPAY', 'WAVEPAY'].includes(channelFilter)) {
       params.push(channelFilter);
       whereSql = `WHERE c.channel = $${params.length}`;
     }
     params.push(limit);
 
     const r = await pool.query(
-      `SELECT c.id, c.user_id, c.phone_e164, c.req_type, c.channel, c.target_phone, c.bank_account_no, c.bank_account_name, c.currency, c.amount, c.tx_ref, c.status, c.admin_note, c.created_at, c.reviewed_at
+      `SELECT c.id, c.user_id, c.phone_e164, c.req_type, c.channel, c.target_phone, c.currency, c.amount, c.tx_ref, c.status, c.admin_note, c.created_at, c.reviewed_at
        FROM cash_requests c
        ${whereSql}
        ORDER BY c.created_at DESC, c.id DESC
@@ -958,9 +869,6 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
 
     const amount = roundMoney(cr.amount);
     const cleanNote = sanitizeText(adminNote, 250);
-    const destLabel = cr.channel === 'KBZ_BANK'
-      ? `KBZ ${cr.bank_account_no}${cr.bank_account_name ? ' (' + cr.bank_account_name + ')' : ''}`
-      : `${cr.channel} (${cr.target_phone})`;
 
     if (status === 'REJECTED') {
       if (cr.req_type === 'CASH_OUT') {
@@ -989,33 +897,21 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
       );
       await client.query(
         `INSERT INTO transactions (receiver_user_id, tx_type, currency, amount, note)
-         VALUES ($1, $2, 'MMK', $3, $4)`,
-        [
-          cr.user_id,
-          cr.channel === 'KBZ_BANK' ? 'KBZ_CASH_IN' : 'DIRECT_CASH_IN',
-          amount,
-          `${destLabel} • Ref: ${cr.tx_ref || 'REQ-' + cr.id}`
-        ]
+         VALUES ($1, 'DIRECT_CASH_IN', 'MMK', $2, $3)`,
+        [cr.user_id, amount, `${cr.channel} (${cr.target_phone}) • Ref: ${cr.tx_ref || 'REQ-' + cr.id}`]
       );
     } else if (cr.req_type === 'CASH_OUT') {
       const extTxId = await callExternalWalletPayout({
         channel: cr.channel,
         phone: cr.target_phone,
-        bankAccountNo: cr.bank_account_no,
-        bankAccountName: cr.bank_account_name,
         amount,
         refId: `REQ_${cr.id}_${Date.now()}`
       });
       finalAdminNote = cleanNote ? `${cleanNote} • Tx: ${extTxId}` : `Approved • Tx: ${extTxId}`;
       await client.query(
         `INSERT INTO transactions (sender_user_id, tx_type, currency, amount, note)
-         VALUES ($1, $2, 'MMK', $3, $4)`,
-        [
-          cr.user_id,
-          cr.channel === 'KBZ_BANK' ? 'KBZ_CASH_OUT' : 'DIRECT_TRANSFER_OUT',
-          amount,
-          `${destLabel} • Tx: ${extTxId}`
-        ]
+         VALUES ($1, 'DIRECT_TRANSFER_OUT', 'MMK', $2, $3)`,
+        [cr.user_id, amount, `${cr.channel} (${cr.target_phone}) • Tx: ${extTxId}`]
       );
     }
 
@@ -1031,7 +927,7 @@ app.post('/api/admin/cash-review', requireAdmin, checkIdempotency, async (req, r
 
     res.json({
       success: true,
-      message: `${cr.phone_e164} (${destLabel}) ${amount.toLocaleString()} MMK Approve ပြီးပါပြီ။`
+      message: `${cr.phone_e164} (${cr.channel}) ${amount.toLocaleString()} MMK Approve ပြီးပါပြီ။`
     });
   } catch (err) {
     if (txOpen) await client.query('ROLLBACK').catch(() => {});
