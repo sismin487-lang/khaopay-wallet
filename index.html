@@ -299,7 +299,6 @@
       </div>
     </div>
 
-    <!-- My QR Modal Card -->
     <div id="myQrCard" class="card hidden" style="text-align:center;">
       <h3>ကျွန်ုပ်၏ KhaoPay QR</h3>
       <div class="sub">ငွေလက်ခံရန် ဤ QR Code ကို ပြပါ</div>
@@ -308,7 +307,6 @@
       <button class="submit-btn gray" onclick="closeQrPanels()">ပိတ်မည်</button>
     </div>
 
-    <!-- Scan QR Modal Card -->
     <div id="scanQrCard" class="card hidden">
       <h3>QR Scan ဖတ်ပြီး ငွေလွှဲရန်</h3>
       <video id="qrVideo" playsinline></video>
@@ -461,7 +459,7 @@
 </div>
 
 <script>
-  const API_BASE = 'https://khaopay-wallet.onrender.com';
+  const API_BASE = '';
   let THB_TO_MMK_RATE = 120;
   let kbzBankInfo = { enabled: false, accountName: '', accountNumber: '', note: '' };
   const imgs = { front: '', back: '', selfie: '', slip: '' };
@@ -572,4 +570,438 @@
       const countryCode = document.getElementById('authCountry').value;
       const phone = document.getElementById('authPhone').value;
       const otp = document.getElementById('authOtp').value.trim();
-      const pin
+      const pin = document.getElementById('authPin').value.trim();
+      const d = await api('/api/auth/register-or-login', 'POST', { countryCode, phone, otp, pin });
+      token = d.token;
+      uid = d.user.id;
+      localStorage.setItem('khaopay_token', token);
+      localStorage.setItem('khaopay_uid', uid);
+      sessionData = d;
+      document.getElementById('authPin').value = '';
+      await loadConfig();
+      render();
+    } catch (e) {
+      showMsg(e.message);
+    }
+  }
+
+  function logout() {
+    closeQrPanels();
+    hideReceipt();
+    sessionData = null;
+    token = '';
+    uid = '';
+    localStorage.removeItem('khaopay_token');
+    localStorage.removeItem('khaopay_uid');
+    document.getElementById('mainScreen').classList.add('hidden');
+    document.getElementById('logoutBtn').classList.add('hidden');
+    document.getElementById('authScreen').classList.remove('hidden');
+  }
+
+  function openTab(tab) {
+    stopCamera();
+    ['cashin', 'cashout', 'transfer', 'swap', 'history'].forEach(t => {
+      document.getElementById('btn-' + t).classList.toggle('active', t === tab);
+      document.getElementById('sec-' + t).classList.toggle('hidden', t !== tab);
+    });
+    if (tab === 'swap') updateSwapPreview();
+    if (tab === 'cashin') updateCashInUi();
+    if (tab === 'cashout') updateCashOutUi();
+  }
+
+  function updateCashInUi() {
+    const ch = document.getElementById('inChannel').value;
+    const isKbz = ch === 'KBZ_BANK';
+    document.getElementById('inKbzFields').classList.toggle('hidden', !isKbz);
+    document.getElementById('kbzDepositInfo').classList.toggle('hidden', !isKbz);
+    if (isKbz) {
+      document.getElementById('kbzAcctName').textContent =
+        `Account Name: ${kbzBankInfo.accountName || 'Contact Admin'}`;
+      document.getElementById('kbzAcctNo').textContent =
+        `Account No: ${kbzBankInfo.accountNumber || 'Contact Admin'}`;
+      document.getElementById('kbzNote').textContent = kbzBankInfo.note || '';
+    }
+  }
+
+  function updateCashOutUi() {
+    const ch = document.getElementById('outChannel').value;
+    document.getElementById('outKbzFields').classList.toggle('hidden', ch !== 'KBZ_BANK');
+  }
+
+  function openMyQr() {
+    closeQrPanels();
+    if (!sessionData || !sessionData.user) return;
+    const phone = sessionData.user.phoneE164;
+    const payload = `KHAOPAY:${phone}`;
+    const box = document.getElementById('qrcodeBox');
+    box.innerHTML = '';
+    new QRCode(box, {
+      text: payload,
+      width: 190,
+      height: 190,
+      colorDark: '#0f172a',
+      colorLight: '#ffffff'
+    });
+    document.getElementById('myQrPhoneLabel').textContent = phone;
+    document.getElementById('myQrCard').classList.remove('hidden');
+  }
+
+  function stopCamera() {
+    if (qrRafId) {
+      cancelAnimationFrame(qrRafId);
+      qrRafId = null;
+    }
+    if (qrStream) {
+      qrStream.getTracks().forEach(t => t.stop());
+      qrStream = null;
+    }
+  }
+
+  function closeQrPanels() {
+    stopCamera();
+    document.getElementById('myQrCard').classList.add('hidden');
+    document.getElementById('scanQrCard').classList.add('hidden');
+  }
+
+  function applyScannedQrText(rawText) {
+    const text = String(rawText || '').trim();
+    let cleaned = text.replace(/^KHAOPAY:/i, '').trim();
+
+    if (cleaned.startsWith('{')) {
+      try {
+        const obj = JSON.parse(cleaned);
+        if (obj && obj.phoneE164) cleaned = String(obj.phoneE164).trim();
+      } catch (_) {}
+    }
+
+    let country = 'MM';
+    let localPhone = cleaned;
+
+    if (cleaned.startsWith('+66')) {
+      country = 'TH';
+      localPhone = '0' + cleaned.slice(3).replace(/\D/g, '');
+    } else if (cleaned.startsWith('66') && cleaned.replace(/\D/g, '').length >= 10) {
+      country = 'TH';
+      localPhone = '0' + cleaned.replace(/\D/g, '').slice(2);
+    } else if (cleaned.startsWith('+95')) {
+      country = 'MM';
+      localPhone = '0' + cleaned.slice(3).replace(/\D/g, '');
+    } else if (cleaned.startsWith('95') && cleaned.replace(/\D/g, '').length >= 10) {
+      country = 'MM';
+      localPhone = '0' + cleaned.replace(/\D/g, '').slice(2);
+    } else {
+      localPhone = cleaned.replace(/\D/g, '');
+    }
+
+    if (!localPhone || localPhone.length < 7) {
+      showMsg('QR Code ထဲတွင် မှန်ကန်သော ဖုန်းနံပါတ် မတွေ့ပါ။');
+      return false;
+    }
+
+    closeQrPanels();
+    openTab('transfer');
+    document.getElementById('recvCountry').value = country;
+    document.getElementById('recvPhone').value = localPhone;
+    showMsg(`QR ဖတ်ပြီးပါပြီ • လက်ခံသူ: ${localPhone} (${country})`);
+    return true;
+  }
+
+  async function openScanQr() {
+    closeQrPanels();
+    const card = document.getElementById('scanQrCard');
+    const video = document.getElementById('qrVideo');
+    const canvas = document.getElementById('qrCanvas');
+    card.classList.remove('hidden');
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showMsg('ကင်မရာ တိုက်ရိုက်ဖွင့်မရပါက အောက်မှ QR ပုံရွေးချယ်ပြီး Scan ဖတ်နိုင်ပါသည်။');
+      return;
+    }
+
+    try {
+      qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      video.srcObject = qrStream;
+      await video.play();
+      const ctx = canvas.getContext('2d');
+
+      const tick = () => {
+        if (!qrStream) return;
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imgData.data, imgData.width, imgData.height);
+          if (code && code.data && applyScannedQrText(code.data)) {
+            return;
+          }
+        }
+        qrRafId = requestAnimationFrame(tick);
+      };
+      qrRafId = requestAnimationFrame(tick);
+    } catch (_) {
+      showMsg('ကင်မရာ ခွင့်ပြုချက် မရပါ — ဖုန်းထဲမှ QR ပုံရွေးချယ်ပြီး Scan ဖတ်နိုင်ပါသည်။');
+    }
+  }
+
+  function scanQrFromFile(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.getElementById('qrCanvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imgData.data, imgData.width, imgData.height);
+        if (code && code.data) {
+          applyScannedQrText(code.data);
+        } else {
+          showMsg('ပုံထဲတွင် QR Code ရှာမတွေ့ပါ။');
+        }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function readImg(input, k) {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => { imgs[k] = reader.result; };
+    reader.readAsDataURL(f);
+  }
+
+  async function submitKyc() {
+    try {
+      const fullName = document.getElementById('kycName').value.trim();
+      const nrcNumber = document.getElementById('kycNrc').value.trim().toUpperCase().replace(/\s+/g, '');
+      const d = await api('/api/kyc/submit', 'POST', {
+        fullName, nrcNumber,
+        frontImageUrl: imgs.front,
+        backImageUrl: imgs.back,
+        selfieImageUrl: imgs.selfie
+      });
+      sessionData = d;
+      showMsg(d.message);
+      render();
+    } catch (e) {
+      showMsg(e.message);
+    }
+  }
+
+  async function submitCash(type) {
+    try {
+      const isIn = type === 'CASH_IN';
+      const channel = document.getElementById(isIn ? 'inChannel' : 'outChannel').value;
+      const targetPhone = sessionData.user.phoneE164;
+      const amount = Number(document.getElementById(isIn ? 'inAmount' : 'outAmount').value);
+      const txRef = isIn ? document.getElementById('inTxRef').value.trim() : '';
+      const pin = document.getElementById(isIn ? 'inPin' : 'outPin').value;
+
+      const payload = {
+        type,
+        channel,
+        targetPhone,
+        amount,
+        txRef,
+        slipImageUrl: isIn ? (imgs.slip || null) : null,
+        pin
+      };
+
+      if (channel === 'KBZ_BANK') {
+        payload.bankAccountNo = document.getElementById(isIn ? 'inKbzAcctNo' : 'outKbzAcctNo').value.trim();
+        payload.bankAccountName = document.getElementById(isIn ? 'inKbzAcctName' : 'outKbzAcctName').value.trim();
+      }
+
+      const endpoint = channel === 'KBZ_BANK' ? '/api/wallet/bank-cash' : '/api/wallet/direct-cash';
+      const d = await api(endpoint, 'POST', payload, { 'x-idempotency-key': idem('cash') });
+      sessionData = d;
+      document.getElementById(isIn ? 'inPin' : 'outPin').value = '';
+      if (isIn) imgs.slip = '';
+      showMsg(d.message);
+      render();
+    } catch (e) {
+      showMsg(e.message);
+    }
+  }
+
+  async function doTransfer() {
+    try {
+      const receiverCountryCode = document.getElementById('recvCountry').value;
+      const receiverPhone = document.getElementById('recvPhone').value.trim();
+      const currency = document.getElementById('txCurrency').value;
+      const amount = Number(document.getElementById('txAmount').value);
+      const note = document.getElementById('txNote').value.trim();
+      const pin = document.getElementById('txPin').value;
+      const d = await api(
+        '/api/transfer',
+        'POST',
+        { receiverCountryCode, receiverPhone, currency, amount, note, pin },
+        { 'x-idempotency-key': idem('tx') }
+      );
+      sessionData = d;
+      document.getElementById('txPin').value = '';
+      document.getElementById('txAmount').value = '';
+      document.getElementById('txNote').value = '';
+      showMsg(d.message);
+      showReceipt({
+        from: sessionData.user.phoneE164,
+        to: `${receiverCountryCode === 'TH' ? '+66' : '+95'} ${receiverPhone}`,
+        amount,
+        currency,
+        note
+      });
+      render();
+    } catch (e) {
+      showMsg(e.message);
+    }
+  }
+
+  function updateSwapPreview() {
+    const pair = document.getElementById('swapPair').value;
+    const amt = Number(document.getElementById('swapAmount').value || 0);
+    const preview = document.getElementById('swapPreview');
+    if (pair === 'MMK_TO_THB') {
+      preview.textContent = `Rate: 1 THB = ${THB_TO_MMK_RATE} MMK • ရမည့်ပမာဏ: ${(amt / THB_TO_MMK_RATE).toFixed(2)} THB`;
+    } else {
+      preview.textContent = `Rate: 1 THB = ${THB_TO_MMK_RATE} MMK • ရမည့်ပမာဏ: ${Number((amt * THB_TO_MMK_RATE).toFixed(2)).toLocaleString()} MMK`;
+    }
+  }
+
+  async function doSwap() {
+    try {
+      const pair = document.getElementById('swapPair').value;
+      const amount = Number(document.getElementById('swapAmount').value);
+      const pin = document.getElementById('swapPin').value;
+      const d = await api(
+        '/api/swap',
+        'POST',
+        { pair, amount, pin },
+        { 'x-idempotency-key': idem('swap') }
+      );
+      sessionData = d;
+      document.getElementById('swapPin').value = '';
+      showMsg(d.message);
+      render();
+    } catch (e) {
+      showMsg(e.message);
+    }
+  }
+
+  async function toggleAdmin() {
+    const box = document.getElementById('adminBox');
+    box.classList.toggle('hidden');
+    document.getElementById('adminSecretInput').value = adminSecret;
+    if (!box.classList.contains('hidden')) await loadAdminQueue();
+  }
+
+  async function loadAdminQueue() {
+    const q = document.getElementById('adminQueue');
+    if (!adminSecret) {
+      q.innerHTML = '<div class="sub">Admin Secret ထည့်ပါ။</div>';
+      return;
+    }
+    try {
+      const [kyc, cash] = await Promise.all([
+        api('/api/admin/pending-kyc', 'GET', null, { 'x-admin-secret': adminSecret }),
+        api('/api/admin/pending-cash', 'GET', null, { 'x-admin-secret': adminSecret })
+      ]);
+      let html = '<h4>Pending KYC</h4>';
+      if (!kyc.kycs.length) html += '<div class="sub">မရှိပါ။</div>';
+      kyc.kycs.forEach(u => {
+        html += `<div class="tx-item">
+          <div><strong>${escapeHtml(u.phone_e164)}</strong> • ${escapeHtml(u.full_name)} (${escapeHtml(u.nrc_normalized)})</div>
+          <div class="row" style="margin-top:6px;">
+            <button class="submit-btn green" style="margin:0" onclick="reviewKyc('${escapeHtml(u.user_id)}','VERIFIED')">Approve</button>
+            <button class="submit-btn red" style="margin:0" onclick="reviewKyc('${escapeHtml(u.user_id)}','REJECTED')">Reject</button>
+          </div>
+        </div>`;
+      });
+
+      html += '<h4 style="margin-top:12px;">Pending Cash In / Out</h4>';
+      if (!cash.requests.length) html += '<div class="sub">မရှိပါ။</div>';
+      cash.requests.forEach(r => {
+        const extraInfo = r.channel === 'KBZ_BANK'
+          ? ` • KBZ: ${escapeHtml(r.bank_account_no || '')} ${r.bank_account_name ? '(' + escapeHtml(r.bank_account_name) + ')' : ''}`
+          : '';
+        html += `<div class="tx-item">
+          <div><strong>#${Number(r.id)} ${escapeHtml(r.req_type)}</strong> (${escapeHtml(r.channel)}${extraInfo}) • ${Number(r.amount).toLocaleString()} MMK</div>
+          <div class="sub">${escapeHtml(r.phone_e164)} ${r.tx_ref ? '• Ref: ' + escapeHtml(r.tx_ref) : ''}</div>
+          <div class="row" style="margin-top:6px;">
+            <button class="submit-btn green" style="margin:0" onclick="reviewCash(${Number(r.id)},'APPROVED')">Approve</button>
+            <button class="submit-btn red" style="margin:0" onclick="reviewCash(${Number(r.id)},'REJECTED')">Reject</button>
+          </div>
+        </div>`;
+      });
+      q.innerHTML = html;
+    } catch (e) {
+      q.innerHTML = `<div class="sub">${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  async function reviewKyc(userId, status) {
+    try {
+      const d = await api('/api/admin/kyc-review', 'POST', { userId, status }, { 'x-admin-secret': adminSecret });
+      await refreshSession();
+      await loadAdminQueue();
+      showMsg(d.message);
+      render();
+    } catch (e) {
+      showMsg(e.message);
+    }
+  }
+
+  async function reviewCash(requestId, status) {
+    try {
+      const d = await api('/api/admin/cash-review', 'POST', { requestId, status }, { 'x-admin-secret': adminSecret });
+      await refreshSession();
+      await loadAdminQueue();
+      showMsg(d.message);
+      render();
+    } catch (e) {
+      showMsg(e.message);
+    }
+  }
+
+  function render() {
+    if (!sessionData) return;
+    document.getElementById('authScreen').classList.add('hidden');
+    document.getElementById('mainScreen').classList.remove('hidden');
+    document.getElementById('logoutBtn').classList.remove('hidden');
+
+    const p = sessionData.user.phoneE164;
+    const st = sessionData.user.kycStatus;
+    document.getElementById('accPhone').textContent = p;
+    const badge = document.getElementById('kycBadge');
+    badge.textContent = st;
+    badge.className = 'badge ' + st;
+
+    document.getElementById('inPhone').value = p;
+    document.getElementById('outPhone').value = p;
+
+    document.getElementById('mmkBal').textContent = Number(sessionData.wallets.MMK || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+    document.getElementById('thbBal').textContent = Number(sessionData.wallets.THB || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+
+    document.getElementById('kycBox').classList.toggle('hidden', st === 'VERIFIED');
+
+    const pending = (sessionData.cashRequests || []).filter(r => r.status === 'PENDING');
+    document.getElementById('pendingList').innerHTML = pending.length
+      ? pending.map(r => `<div class="tx-item"><strong>${escapeHtml(r.req_type)}</strong> (${escapeHtml(r.channel)}) • ${Number(r.amount).toLocaleString()} MMK <span class="badge PENDING">PENDING</span></div>`).join('')
+      : '<div class="sub">မရှိပါ။</div>';
+
+    const txs = sessionData.transactions || [];
+    document.getElementById('txList').innerHTML = txs.length
+      ? txs.map(t => `<div class="tx-item"><div><strong>${escapeHtml(t.tx_type)}</strong> • ${Number(t.amount).toLocaleString()} ${escapeHtml(t.currency)}</div><div class="sub">${escapeHtml(t.note || '')}</div></div>`).join('')
+      : '<div class="sub">မှတ်တမ်း မရှိသေးပါ။</div>';
+  }
+
+  init();
+</script>
+</body>
+</html>
