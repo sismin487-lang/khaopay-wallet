@@ -3,49 +3,219 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KhaoPay | KPay • WavePay • QR Wallet</title>
+  <title>KhaoPay | KPay • WavePay • KBZ Bank • QR Wallet</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
-    body { margin: 0; background: #0b1120; color: #f8fafc; display: flex; justify-content: center; padding: 14px; }
-    .app { width: 100%; max-width: 440px; background: #111827; border: 1px solid #1f2937; border-radius: 24px; padding: 18px; box-shadow: 0 24px 48px rgba(0,0,0,.55); }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background-color: #060b19;
+      background-image:
+        radial-gradient(circle at 12% 10%, rgba(59, 130, 246, 0.24), transparent 42%),
+        radial-gradient(circle at 88% 18%, rgba(6, 182, 212, 0.18), transparent 40%),
+        radial-gradient(circle at 50% 95%, rgba(99, 102, 241, 0.20), transparent 48%),
+        linear-gradient(160deg, #060b19 0%, #0b142c 52%, #070d1f 100%);
+      background-attachment: fixed;
+      color: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 16px 14px 28px;
+    }
+    .app {
+      width: 100%;
+      max-width: 440px;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.90) 0%, rgba(10, 17, 34, 0.94) 100%);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(96, 165, 250, 0.22);
+      border-radius: 26px;
+      padding: 18px;
+      box-shadow:
+        0 25px 60px rgba(0, 0, 0, 0.65),
+        0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    }
     .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-    .brand { font-size: 20px; font-weight: 800; }
-    .sub { font-size: 12px; color: #9ca3af; }
-    .wallet-card { background: linear-gradient(135deg, #1d4ed8 0%, #0f172a 100%); border: 1px solid #3b82f6; border-radius: 20px; padding: 18px; margin-bottom: 14px; }
-    .wallet-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #dbeafe; }
-    .bal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
-    .bal-item { background: rgba(15, 23, 42, .55); border-radius: 14px; padding: 12px; }
-    .bal-label { font-size: 11px; color: #93c5fd; }
-    .bal-val { font-size: 18px; font-weight: 800; margin-top: 4px; }
-    .qr-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
-    .qr-btn { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.28); color: #fff; border-radius: 12px; padding: 9px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .brand {
+      font-size: 21px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      background: linear-gradient(90deg, #ffffff 0%, #93c5fd 55%, #67e8f9 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .sub { font-size: 12px; color: #94a3b8; }
+    .wallet-card {
+      background: linear-gradient(135deg, #2563eb 0%, #4338ca 52%, #0f172a 100%);
+      border: 1px solid rgba(147, 197, 253, 0.45);
+      border-radius: 22px;
+      padding: 18px;
+      margin-bottom: 14px;
+      box-shadow: 0 14px 32px rgba(37, 99, 235, 0.28);
+      position: relative;
+      overflow: hidden;
+    }
+    .wallet-card::before {
+      content: "";
+      position: absolute;
+      top: -45px;
+      right: -35px;
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(103, 232, 249, 0.28), transparent 70%);
+      pointer-events: none;
+    }
+    .wallet-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #e0f2fe; position: relative; }
+    .bal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; position: relative; }
+    .bal-item {
+      background: rgba(9, 15, 32, 0.52);
+      border: 1px solid rgba(191, 219, 254, 0.16);
+      border-radius: 15px;
+      padding: 12px;
+    }
+    .bal-label { font-size: 11px; color: #bae6fd; }
+    .bal-val { font-size: 18px; font-weight: 800; margin-top: 4px; color: #ffffff; }
+    .qr-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; position: relative; }
+    .qr-btn {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.30);
+      color: #fff;
+      border-radius: 12px;
+      padding: 9px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.15s ease;
+    }
+    .qr-btn:hover { background: rgba(255, 255, 255, 0.24); transform: translateY(-1px); }
     .actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 14px; }
-    .act-btn { background: #1f2937; border: 1px solid #374151; color: #f9fafb; border-radius: 12px; padding: 10px 4px; font-size: 11px; font-weight: 700; cursor: pointer; text-align: center; }
-    .act-btn.active { background: #2563eb; border-color: #60a5fa; }
-    .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 18px; padding: 15px; margin-bottom: 14px; }
-    h3, h4 { margin: 0 0 10px; font-size: 15px; }
+    .act-btn {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(100, 116, 139, 0.35);
+      color: #f1f5f9;
+      border-radius: 12px;
+      padding: 10px 4px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.18s ease;
+    }
+    .act-btn:hover { border-color: #60a5fa; color: #93c5fd; }
+    .act-btn.active {
+      background: linear-gradient(135deg, #2563eb 0%, #0284c7 100%);
+      border-color: #7dd3fc;
+      color: #ffffff;
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.86) 0%, rgba(13, 20, 38, 0.92) 100%);
+      border: 1px solid rgba(51, 65, 85, 0.75);
+      border-radius: 18px;
+      padding: 15px;
+      margin-bottom: 14px;
+      box-shadow: 0 10px 24px rgba(2, 6, 23, 0.45);
+    }
+    h3, h4 { margin: 0 0 10px; font-size: 15px; color: #f8fafc; }
     label { display: block; font-size: 12px; color: #cbd5e1; margin: 10px 0 4px; }
     input, select, button.submit-btn { width: 100%; padding: 11px 12px; border-radius: 12px; border: 1px solid #334155; font-size: 14px; }
-    input, select { background: #1e293b; color: #fff; }
-    input[readonly] { background: #111827; color: #93c5fd; }
-    button.submit-btn { background: #2563eb; color: #fff; border: none; font-weight: 700; cursor: pointer; margin-top: 12px; }
-    button.submit-btn.green { background: #16a34a; }
-    button.submit-btn.red { background: #dc2626; }
-    button.submit-btn.gray { background: #334155; }
-    .small-btn { background: #334155; color: #fff; border: none; border-radius: 10px; padding: 7px 11px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    input, select {
+      background: rgba(15, 23, 42, 0.9);
+      color: #fff;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
+    }
+    input[readonly] { background: rgba(9, 13, 26, 0.85); color: #7dd3fc; }
+    button.submit-btn {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #fff;
+      border: none;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 12px;
+      box-shadow: 0 8px 18px rgba(37, 99, 235, 0.28);
+      transition: filter 0.18s ease, transform 0.12s ease;
+    }
+    button.submit-btn:hover { filter: brightness(1.08); }
+    button.submit-btn:active { transform: scale(0.99); }
+    button.submit-btn.green {
+      background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+      box-shadow: 0 8px 18px rgba(22, 163, 74, 0.28);
+    }
+    button.submit-btn.red {
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      box-shadow: 0 8px 18px rgba(220, 38, 38, 0.25);
+    }
+    button.submit-btn.gray {
+      background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+      box-shadow: none;
+      border: 1px solid #475569;
+    }
+    .small-btn {
+      background: rgba(51, 65, 85, 0.9);
+      color: #f8fafc;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 10px;
+      padding: 7px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .small-btn:hover { background: rgba(71, 85, 105, 0.95); }
     .row { display: flex; gap: 8px; }
     .badge { padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
     .UNVERIFIED { background: #475569; color: #fff; }
     .PENDING { background: #f59e0b; color: #000; }
     .VERIFIED, .APPROVED { background: #16a34a; color: #fff; }
     .REJECTED { background: #dc2626; color: #fff; }
-    .tx-item { border-bottom: 1px solid #1e293b; padding: 9px 0; font-size: 13px; }
+    .tx-item { border-bottom: 1px solid rgba(51, 65, 85, 0.65); padding: 9px 0; font-size: 13px; }
     .tx-item:last-child { border-bottom: none; }
-    .msg { background: #172554; border: 1px solid #3b82f6; color: #eff6ff; padding: 10px 12px; border-radius: 12px; font-size: 13px; margin-bottom: 12px; }
-    .rate-box { background: #1e293b; border: 1px dashed #475569; border-radius: 10px; padding: 9px 11px; font-size: 12px; color: #e2e8f0; margin-top: 8px; }
-    .qr-wrap { background: #fff; padding: 16px; border-radius: 16px; display: inline-flex; justify-content: center; align-items: center; margin: 10px auto; }
+    .msg {
+      background: linear-gradient(135deg, rgba(23, 37, 84, 0.95) 0%, rgba(12, 74, 110, 0.92) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.55);
+      color: #f0f9ff;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      margin-bottom: 12px;
+      box-shadow: 0 8px 20px rgba(2, 132, 199, 0.18);
+    }
+    .rate-box {
+      background: rgba(30, 41, 59, 0.72);
+      border: 1px dashed rgba(125, 211, 252, 0.45);
+      border-radius: 10px;
+      padding: 9px 11px;
+      font-size: 12px;
+      color: #e0f2fe;
+      margin-top: 8px;
+    }
+    .bank-box {
+      background: linear-gradient(135deg, rgba(23, 37, 84, 0.88) 0%, rgba(15, 23, 42, 0.92) 100%);
+      border: 1px solid rgba(59, 130, 246, 0.5);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #dbeafe;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+    .receipt-box {
+      background: linear-gradient(135deg, rgba(5, 46, 22, 0.94) 0%, rgba(6, 78, 59, 0.90) 100%);
+      border: 1px solid rgba(74, 222, 128, 0.55);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 14px;
+      font-size: 13px;
+    }
+    .receipt-row { display: flex; justify-content: space-between; margin: 5px 0; color: #dcfce7; }
+    .qr-wrap { background: #fff; padding: 16px; border-radius: 16px; display: inline-flex; justify-content: center; align-items: center; margin: 10px auto; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35); }
     video { width: 100%; border-radius: 14px; background: #000; border: 1px solid #334155; }
     .hidden { display: none; }
   </style>
@@ -55,12 +225,24 @@
   <div class="topbar">
     <div>
       <div class="brand">KhaoPay</div>
-      <div class="sub">KPay • WavePay • QR Wallet</div>
+      <div class="sub">KPay • WavePay • KBZ Bank • QR</div>
     </div>
     <button id="logoutBtn" class="small-btn hidden" onclick="logout()">ထွက်ရန်</button>
   </div>
 
   <div id="msgBox" class="msg hidden"></div>
+
+  <div id="receiptCard" class="receipt-box hidden">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <strong style="color:#4ade80;">ငွေလွှဲပြေစာ (Transfer Receipt)</strong>
+      <button class="small-btn" onclick="hideReceipt()">ပိတ်ရန်</button>
+    </div>
+    <div class="receipt-row"><span>ပေးပို့သူ</span><strong id="rcFrom"></strong></div>
+    <div class="receipt-row"><span>လက်ခံသူ</span><strong id="rcTo"></strong></div>
+    <div class="receipt-row"><span>ပမာဏ</span><strong id="rcAmount"></strong></div>
+    <div class="receipt-row"><span>မှတ်ချက်</span><span id="rcNote"></span></div>
+    <div class="receipt-row"><span>အချိန်</span><span id="rcTime"></span></div>
+  </div>
 
   <div id="authScreen" class="card">
     <h3>ဖုန်းနံပါတ်ဖြင့် အကောင့်ဝင် / ဖွင့်ရန်</h3>
@@ -94,7 +276,7 @@
     <div class="wallet-card">
       <div class="wallet-top">
         <div>
-          <div style="font-size:11px; opacity:.8;">အကောင့်ဖုန်းနံပါတ်</div>
+          <div style="font-size:11px; opacity:.85;">အကောင့်ဖုန်းနံပါတ်</div>
           <strong id="accPhone" style="font-size:15px;"></strong>
         </div>
         <span id="kycBadge" class="badge UNVERIFIED">UNVERIFIED</span>
@@ -146,17 +328,35 @@
 
     <div id="sec-cashin" class="card">
       <h3>ငွေသွင်းရန် (Cash In)</h3>
-      <label>KPay / WavePay</label>
-      <select id="inChannel">
+      <label>KPay / WavePay / KBZ Bank</label>
+      <select id="inChannel" onchange="updateCashInUi()">
         <option value="KPAY">KBZPay (KPay)</option>
         <option value="WAVEPAY">WavePay</option>
+        <option value="KBZ_BANK">KBZ Bank</option>
       </select>
+
+      <div id="kbzDepositInfo" class="bank-box hidden">
+        <div><strong>KBZ Bank ငွေသွင်းအကောင့်</strong></div>
+        <div id="kbzAcctName">Account Name: -</div>
+        <div id="kbzAcctNo">Account No: -</div>
+        <div id="kbzNote" class="sub" style="margin-top:3px;"></div>
+      </div>
+
+      <div id="inKbzFields" class="hidden">
+        <label>ပေးပို့သူ KBZ ဘဏ်အကောင့်နံပါတ်</label>
+        <input id="inKbzAcctNo" placeholder="001xxxxxxxxxx" />
+        <label>ဘဏ်အကောင့်ပိုင်ရှင် အမည် (Optional)</label>
+        <input id="inKbzAcctName" placeholder="Account Holder Name" />
+      </div>
+
       <label>အကောင့် ဖုန်းနံပါတ်</label>
       <input id="inPhone" readonly />
       <label>ငွေပမာဏ (MMK)</label>
       <input id="inAmount" type="number" step="100" placeholder="10000" />
-      <label>Transaction ID (Optional)</label>
-      <input id="inTxRef" placeholder="Txn ID" />
+      <label>Transaction ID / Ref (Optional)</label>
+      <input id="inTxRef" placeholder="Txn ID / Bank Ref" />
+      <label>ငွေလွှဲပြေစာ ပုံ (Optional)</label>
+      <input type="file" accept="image/*" onchange="readImg(this,'slip')" />
       <label>PIN (၆ လုံး)</label>
       <input id="inPin" type="password" maxlength="6" placeholder="••••••" />
       <button class="submit-btn green" onclick="submitCash('CASH_IN')">ငွေသွင်း တောင်းဆိုမည်</button>
@@ -164,11 +364,20 @@
 
     <div id="sec-cashout" class="card hidden">
       <h3>ငွေထုတ်ရန် (Cash Out)</h3>
-      <label>KPay / WavePay</label>
-      <select id="outChannel">
+      <label>KPay / WavePay / KBZ Bank</label>
+      <select id="outChannel" onchange="updateCashOutUi()">
         <option value="KPAY">KBZPay (KPay)</option>
         <option value="WAVEPAY">WavePay</option>
+        <option value="KBZ_BANK">KBZ Bank</option>
       </select>
+
+      <div id="outKbzFields" class="hidden">
+        <label>လက်ခံမည့် KBZ ဘဏ်အကောင့်နံပါတ်</label>
+        <input id="outKbzAcctNo" placeholder="001xxxxxxxxxx" />
+        <label>KBZ ဘဏ်အကောင့်ပိုင်ရှင် အမည်</label>
+        <input id="outKbzAcctName" placeholder="Full Name on KBZ Account" />
+      </div>
+
       <label>အကောင့် ဖုန်းနံပါတ်</label>
       <input id="outPhone" readonly />
       <label>ငွေပမာဏ (MMK)</label>
@@ -223,7 +432,7 @@
       <h3 style="margin-top:14px;">လှုပ်ရှားမှု မှတ်တမ်း</h3>
       <div id="txList"><div class="sub">မှတ်တမ်း မရှိသေးပါ။</div></div>
 
-      <div id="kycBox" style="margin-top:14px; border-top:1px solid #1e293b; padding-top:12px;">
+      <div id="kycBox" style="margin-top:14px; border-top:1px solid rgba(51,65,85,0.7); padding-top:12px;">
         <h4>အကောင့် KYC အတည်ပြုရန်</h4>
         <label>အမည်အပြည့်အစုံ</label>
         <input id="kycName" placeholder="Full Name" />
@@ -254,7 +463,8 @@
 <script>
   const API_BASE = 'https://khaopay-wallet.onrender.com';
   let THB_TO_MMK_RATE = 120;
-  const imgs = { front: '', back: '', selfie: '' };
+  let kbzBankInfo = { enabled: false, accountName: '', accountNumber: '', note: '' };
+  const imgs = { front: '', back: '', selfie: '', slip: '' };
   let sessionData = null;
   let token = localStorage.getItem('khaopay_token') || '';
   let uid = localStorage.getItem('khaopay_uid') || '';
@@ -262,10 +472,32 @@
   let qrStream = null;
   let qrRafId = null;
 
+  function escapeHtml(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function showMsg(t) {
     const el = document.getElementById('msgBox');
-    el.textContent = t;
+    el.textContent = String(t ?? '');
     el.classList.remove('hidden');
+  }
+
+  function hideReceipt() {
+    document.getElementById('receiptCard').classList.add('hidden');
+  }
+
+  function showReceipt({ from, to, amount, currency, note }) {
+    document.getElementById('rcFrom').textContent = from;
+    document.getElementById('rcTo').textContent = to;
+    document.getElementById('rcAmount').textContent = `${Number(amount).toLocaleString()} ${currency}`;
+    document.getElementById('rcNote').textContent = note || '-';
+    document.getElementById('rcTime').textContent = new Date().toLocaleString();
+    document.getElementById('receiptCard').classList.remove('hidden');
   }
 
   function idem(prefix) {
@@ -297,6 +529,10 @@
         THB_TO_MMK_RATE = Number(cfg.rate);
         updateSwapPreview();
       }
+      if (cfg && cfg.kbzBank) {
+        kbzBankInfo = cfg.kbzBank;
+        updateCashInUi();
+      }
     } catch (_) {}
   }
 
@@ -308,6 +544,8 @@
 
   async function init() {
     await loadConfig();
+    updateCashInUi();
+    updateCashOutUi();
     if (!token || !uid) return;
     try {
       await refreshSession();
@@ -334,383 +572,4 @@
       const countryCode = document.getElementById('authCountry').value;
       const phone = document.getElementById('authPhone').value;
       const otp = document.getElementById('authOtp').value.trim();
-      const pin = document.getElementById('authPin').value.trim();
-      const d = await api('/api/auth/register-or-login', 'POST', { countryCode, phone, otp, pin });
-      token = d.token;
-      uid = d.user.id;
-      localStorage.setItem('khaopay_token', token);
-      localStorage.setItem('khaopay_uid', uid);
-      sessionData = d;
-      document.getElementById('authPin').value = '';
-      await loadConfig();
-      render();
-    } catch (e) {
-      showMsg(e.message);
-    }
-  }
-
-  function logout() {
-    closeQrPanels();
-    sessionData = null;
-    token = '';
-    uid = '';
-    localStorage.removeItem('khaopay_token');
-    localStorage.removeItem('khaopay_uid');
-    document.getElementById('mainScreen').classList.add('hidden');
-    document.getElementById('logoutBtn').classList.add('hidden');
-    document.getElementById('authScreen').classList.remove('hidden');
-  }
-
-  function openTab(tab) {
-    ['cashin', 'cashout', 'transfer', 'swap', 'history'].forEach(t => {
-      document.getElementById('btn-' + t).classList.toggle('active', t === tab);
-      document.getElementById('sec-' + t).classList.toggle('hidden', t !== tab);
-    });
-    if (tab === 'swap') updateSwapPreview();
-  }
-
-  // --- QR System ---
-  function openMyQr() {
-    closeQrPanels();
-    if (!sessionData || !sessionData.user) return;
-    const phone = sessionData.user.phoneE164;
-    const payload = `KHAOPAY:${phone}`;
-    const box = document.getElementById('qrcodeBox');
-    box.innerHTML = '';
-    new QRCode(box, {
-      text: payload,
-      width: 190,
-      height: 190,
-      colorDark: '#0f172a',
-      colorLight: '#ffffff'
-    });
-    document.getElementById('myQrPhoneLabel').textContent = phone;
-    document.getElementById('myQrCard').classList.remove('hidden');
-  }
-
-  function stopCamera() {
-    if (qrRafId) {
-      cancelAnimationFrame(qrRafId);
-      qrRafId = null;
-    }
-    if (qrStream) {
-      qrStream.getTracks().forEach(t => t.stop());
-      qrStream = null;
-    }
-  }
-
-  function closeQrPanels() {
-    stopCamera();
-    document.getElementById('myQrCard').classList.add('hidden');
-    document.getElementById('scanQrCard').classList.add('hidden');
-  }
-
-  function applyScannedQrText(rawText) {
-    const text = String(rawText || '').trim();
-    const cleaned = text.replace(/^KHAOPAY:/i, '').trim();
-    let country = 'MM';
-    let localPhone = cleaned;
-
-    if (cleaned.startsWith('+66')) {
-      country = 'TH';
-      localPhone = '0' + cleaned.slice(3).replace(/\D/g, '');
-    } else if (cleaned.startsWith('66') && cleaned.replace(/\D/g, '').length >= 10) {
-      country = 'TH';
-      localPhone = '0' + cleaned.replace(/\D/g, '').slice(2);
-    } else if (cleaned.startsWith('+95')) {
-      country = 'MM';
-      localPhone = '0' + cleaned.slice(3).replace(/\D/g, '');
-    } else if (cleaned.startsWith('95') && cleaned.replace(/\D/g, '').length >= 10) {
-      country = 'MM';
-      localPhone = '0' + cleaned.replace(/\D/g, '').slice(2);
-    } else {
-      localPhone = cleaned.replace(/\D/g, '');
-    }
-
-    if (!localPhone || localPhone.length < 7) {
-      showMsg('QR Code ထဲတွင် မှန်ကန်သော ဖုန်းနံပါတ် မတွေ့ပါ။');
-      return false;
-    }
-
-    closeQrPanels();
-    openTab('transfer');
-    document.getElementById('recvCountry').value = country;
-    document.getElementById('recvPhone').value = localPhone;
-    showMsg(`QR ဖတ်ပြီးပါပြီ • လက်ခံသူ: ${localPhone} (${country})`);
-    return true;
-  }
-
-  async function openScanQr() {
-    closeQrPanels();
-    const card = document.getElementById('scanQrCard');
-    const video = document.getElementById('qrVideo');
-    const canvas = document.getElementById('qrCanvas');
-    card.classList.remove('hidden');
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showMsg('ကင်မရာ တိုက်ရိုက်ဖွင့်မရပါက အောက်မှ QR ပုံရွေးချယ်ပြီး Scan ဖတ်နိုင်ပါသည်။');
-      return;
-    }
-
-    try {
-      qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      video.srcObject = qrStream;
-      await video.play();
-      const ctx = canvas.getContext('2d');
-
-      const tick = () => {
-        if (!qrStream) return;
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imgData.data, imgData.width, imgData.height);
-          if (code && code.data && applyScannedQrText(code.data)) {
-            return;
-          }
-        }
-        qrRafId = requestAnimationFrame(tick);
-      };
-      qrRafId = requestAnimationFrame(tick);
-    } catch (_) {
-      showMsg('ကင်မရာ ခွင့်ပြုချက် မရပါ — ဖုန်းထဲမှ QR ပုံရွေးချယ်ပြီး Scan ဖတ်နိုင်ပါသည်။');
-    }
-  }
-
-  function scanQrFromFile(input) {
-    const file = input.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.getElementById('qrCanvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imgData.data, imgData.width, imgData.height);
-        if (code && code.data) {
-          applyScannedQrText(code.data);
-        } else {
-          showMsg('ပုံထဲတွင် QR Code ရှာမတွေ့ပါ။');
-        }
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function readImg(input, k) {
-    const f = input.files[0];
-    if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => { imgs[k] = reader.result; };
-    reader.readAsDataURL(f);
-  }
-
-  async function submitKyc() {
-    try {
-      const fullName = document.getElementById('kycName').value.trim();
-      const nrcNumber = document.getElementById('kycNrc').value.trim().toUpperCase().replace(/\s+/g, '');
-      const d = await api('/api/kyc/submit', 'POST', {
-        fullName, nrcNumber,
-        frontImageUrl: imgs.front,
-        backImageUrl: imgs.back,
-        selfieImageUrl: imgs.selfie
-      });
-      sessionData = d;
-      showMsg(d.message);
-      render();
-    } catch (e) {
-      showMsg(e.message);
-    }
-  }
-
-  async function submitCash(type) {
-    try {
-      const isIn = type === 'CASH_IN';
-      const channel = document.getElementById(isIn ? 'inChannel' : 'outChannel').value;
-      const targetPhone = sessionData.user.phoneE164;
-      const amount = Number(document.getElementById(isIn ? 'inAmount' : 'outAmount').value);
-      const txRef = isIn ? document.getElementById('inTxRef').value.trim() : '';
-      const pin = document.getElementById(isIn ? 'inPin' : 'outPin').value;
-      const d = await api(
-        '/api/wallet/direct-cash',
-        'POST',
-        { type, channel, targetPhone, amount, txRef, pin },
-        { 'x-idempotency-key': idem('cash') }
-      );
-      sessionData = d;
-      document.getElementById(isIn ? 'inPin' : 'outPin').value = '';
-      showMsg(d.message);
-      render();
-    } catch (e) {
-      showMsg(e.message);
-    }
-  }
-
-  async function doTransfer() {
-    try {
-      const receiverCountryCode = document.getElementById('recvCountry').value;
-      const receiverPhone = document.getElementById('recvPhone').value.trim();
-      const currency = document.getElementById('txCurrency').value;
-      const amount = Number(document.getElementById('txAmount').value);
-      const note = document.getElementById('txNote').value.trim();
-      const pin = document.getElementById('txPin').value;
-      const d = await api(
-        '/api/transfer',
-        'POST',
-        { receiverCountryCode, receiverPhone, currency, amount, note, pin },
-        { 'x-idempotency-key': idem('tx') }
-      );
-      sessionData = d;
-      document.getElementById('txPin').value = '';
-      showMsg(d.message);
-      render();
-    } catch (e) {
-      showMsg(e.message);
-    }
-  }
-
-  function updateSwapPreview() {
-    const pair = document.getElementById('swapPair').value;
-    const amt = Number(document.getElementById('swapAmount').value || 0);
-    const preview = document.getElementById('swapPreview');
-    if (pair === 'MMK_TO_THB') {
-      preview.textContent = `Rate: 1 THB = ${THB_TO_MMK_RATE} MMK • ရမည့်ပမာဏ: ${(amt / THB_TO_MMK_RATE).toFixed(2)} THB`;
-    } else {
-      preview.textContent = `Rate: 1 THB = ${THB_TO_MMK_RATE} MMK • ရမည့်ပမာဏ: ${Number((amt * THB_TO_MMK_RATE).toFixed(2)).toLocaleString()} MMK`;
-    }
-  }
-
-  async function doSwap() {
-    try {
-      const pair = document.getElementById('swapPair').value;
-      const amount = Number(document.getElementById('swapAmount').value);
-      const pin = document.getElementById('swapPin').value;
-      const d = await api(
-        '/api/swap',
-        'POST',
-        { pair, amount, pin },
-        { 'x-idempotency-key': idem('swap') }
-      );
-      sessionData = d;
-      document.getElementById('swapPin').value = '';
-      showMsg(d.message);
-      render();
-    } catch (e) {
-      showMsg(e.message);
-    }
-  }
-
-  async function toggleAdmin() {
-    const box = document.getElementById('adminBox');
-    box.classList.toggle('hidden');
-    document.getElementById('adminSecretInput').value = adminSecret;
-    if (!box.classList.contains('hidden')) await loadAdminQueue();
-  }
-
-  async function loadAdminQueue() {
-    const q = document.getElementById('adminQueue');
-    if (!adminSecret) {
-      q.innerHTML = '<div class="sub">Admin Secret ထည့်ပါ။</div>';
-      return;
-    }
-    try {
-      const [kyc, cash] = await Promise.all([
-        api('/api/admin/pending-kyc', 'GET', null, { 'x-admin-secret': adminSecret }),
-        api('/api/admin/pending-cash', 'GET', null, { 'x-admin-secret': adminSecret })
-      ]);
-      let html = '<h4>Pending KYC</h4>';
-      if (!kyc.kycs.length) html += '<div class="sub">မရှိပါ။</div>';
-      kyc.kycs.forEach(u => {
-        html += `<div class="tx-item">
-          <div><strong>${u.phone_e164}</strong> • ${u.full_name} (${u.nrc_normalized})</div>
-          <div class="row" style="margin-top:6px;">
-            <button class="submit-btn green" style="margin:0" onclick="reviewKyc(${u.user_id},'VERIFIED')">Approve</button>
-            <button class="submit-btn red" style="margin:0" onclick="reviewKyc(${u.user_id},'REJECTED')">Reject</button>
-          </div>
-        </div>`;
-      });
-
-      html += '<h4 style="margin-top:12px;">Pending Cash In / Out</h4>';
-      if (!cash.requests.length) html += '<div class="sub">မရှိပါ။</div>';
-      cash.requests.forEach(r => {
-        html += `<div class="tx-item">
-          <div><strong>#${r.id} ${r.req_type}</strong> (${r.channel}) • ${Number(r.amount).toLocaleString()} MMK</div>
-          <div class="sub">${r.phone_e164}</div>
-          <div class="row" style="margin-top:6px;">
-            <button class="submit-btn green" style="margin:0" onclick="reviewCash(${r.id},'APPROVED')">Approve</button>
-            <button class="submit-btn red" style="margin:0" onclick="reviewCash(${r.id},'REJECTED')">Reject</button>
-          </div>
-        </div>`;
-      });
-      q.innerHTML = html;
-    } catch (e) {
-      q.innerHTML = `<div class="sub">${e.message}</div>`;
-    }
-  }
-
-  async function reviewKyc(userId, status) {
-    try {
-      const d = await api('/api/admin/kyc-review', 'POST', { userId, status }, { 'x-admin-secret': adminSecret });
-      await refreshSession();
-      await loadAdminQueue();
-      showMsg(d.message);
-      render();
-    } catch (e) {
-      showMsg(e.message);
-    }
-  }
-
-  async function reviewCash(requestId, status) {
-    try {
-      const d = await api('/api/admin/cash-review', 'POST', { requestId, status }, { 'x-admin-secret': adminSecret });
-      await refreshSession();
-      await loadAdminQueue();
-      showMsg(d.message);
-      render();
-    } catch (e) {
-      showMsg(e.message);
-    }
-  }
-
-  function render() {
-    if (!sessionData) return;
-    document.getElementById('authScreen').classList.add('hidden');
-    document.getElementById('mainScreen').classList.remove('hidden');
-    document.getElementById('logoutBtn').classList.remove('hidden');
-
-    const p = sessionData.user.phoneE164;
-    const st = sessionData.user.kycStatus;
-    document.getElementById('accPhone').textContent = p;
-    const badge = document.getElementById('kycBadge');
-    badge.textContent = st;
-    badge.className = 'badge ' + st;
-
-    document.getElementById('inPhone').value = p;
-    document.getElementById('outPhone').value = p;
-
-    document.getElementById('mmkBal').textContent = Number(sessionData.wallets.MMK || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
-    document.getElementById('thbBal').textContent = Number(sessionData.wallets.THB || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
-
-    document.getElementById('kycBox').classList.toggle('hidden', st === 'VERIFIED');
-
-    const pending = (sessionData.cashRequests || []).filter(r => r.status === 'PENDING');
-    document.getElementById('pendingList').innerHTML = pending.length
-      ? pending.map(r => `<div class="tx-item"><strong>${r.req_type}</strong> (${r.channel}) • ${Number(r.amount).toLocaleString()} MMK <span class="badge PENDING">PENDING</span></div>`).join('')
-      : '<div class="sub">မရှိပါ။</div>';
-
-    const txs = sessionData.transactions || [];
-    document.getElementById('txList').innerHTML = txs.length
-      ? txs.map(t => `<div class="tx-item"><div><strong>${t.tx_type}</strong> • ${Number(t.amount).toLocaleString()} ${t.currency}</div><div class="sub">${t.note || ''}</div></div>`).join('')
-      : '<div class="sub">မှတ်တမ်း မရှိသေးပါ။</div>';
-  }
-
-  init();
-</script>
-</body>
-</html>
+      const pin
