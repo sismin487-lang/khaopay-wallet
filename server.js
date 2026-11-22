@@ -17,6 +17,8 @@ const pool = new Pool({
 const THB_TO_MMK_RATE = Number(process.env.THB_TO_MMK_RATE || 120);
 const TOKEN_SECRET = process.env.TOKEN_SECRET || crypto.randomBytes(32).toString('hex');
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const TELEGRAM_OTP_CHAT_ID = process.env.TELEGRAM_OTP_CHAT_ID || '';
 const OTP_TTL_MS = 5 * 60 * 1000;
 const MAX_PIN_ATTEMPTS = 5;
 const PIN_LOCK_MS = 15 * 60 * 1000;
@@ -220,6 +222,22 @@ function clearPinFailure(userId) {
 }
 
 async function sendOtpViaProvider(phoneE164, code) {
+  if (TELEGRAM_BOT_TOKEN && TELEGRAM_OTP_CHAT_ID) {
+    const resp = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_OTP_CHAT_ID,
+        text: `🔐 KhaoPay OTP\nPhone: ${phoneE164}\nCode: ${code}\n(၅ မိနစ်အတွင်း အသုံးပြုပါ)`
+      })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || data.ok === false) {
+      throw new Error(data.description || 'Telegram OTP ပို့ဆောင်ရာတွင် အဆင်မပြေပါ။');
+    }
+    return { delivered: true };
+  }
+
   if (process.env.OTP_WEBHOOK_URL) {
     const resp = await fetch(process.env.OTP_WEBHOOK_URL, {
       method: 'POST',
@@ -235,6 +253,7 @@ async function sendOtpViaProvider(phoneE164, code) {
     }
     return { delivered: true };
   }
+
   return { delivered: false };
 }
 
@@ -331,7 +350,7 @@ app.get('/api/config', (req, res) => {
   res.json({
     success: true,
     rate: THB_TO_MMK_RATE,
-    otpGatewayConfigured: Boolean(process.env.OTP_WEBHOOK_URL),
+    otpGatewayConfigured: Boolean((TELEGRAM_BOT_TOKEN && TELEGRAM_OTP_CHAT_ID) || process.env.OTP_WEBHOOK_URL),
     payoutGatewayConfigured: Boolean(process.env.PAYMENT_GATEWAY_URL && process.env.PAYMENT_GATEWAY_KEY)
   });
 });
@@ -356,7 +375,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
       phoneE164,
       expiresInSeconds: 300,
       message: providerRes.delivered
-        ? `${phoneE164} သို့ OTP ပို့ပြီးပါပြီ (၅ မိနစ်အတွင်း အသုံးပြုပါ)။`
+        ? `${phoneE164} အတွက် OTP ကို Telegram Bot ထဲ ပို့ပြီးပါပြီ (၅ မိနစ်အတွင်း အသုံးပြုပါ)။`
         : `${phoneE164} အတွက် OTP ထုတ်ပေးပြီးပါပြီ (Test OTP: ${code})`
     };
 
