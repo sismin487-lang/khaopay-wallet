@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KhaoPay | KPay • WavePay • KBZ Bank • QR Wallet</title>
+  <title>KhaoPay | KPay • WavePay • QR Wallet</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
@@ -196,16 +196,6 @@
       color: #e0f2fe;
       margin-top: 8px;
     }
-    .bank-box {
-      background: linear-gradient(135deg, rgba(23, 37, 84, 0.88) 0%, rgba(15, 23, 42, 0.92) 100%);
-      border: 1px solid rgba(59, 130, 246, 0.5);
-      border-radius: 12px;
-      padding: 10px 12px;
-      font-size: 12px;
-      color: #dbeafe;
-      margin-top: 8px;
-      line-height: 1.5;
-    }
     .receipt-box {
       background: linear-gradient(135deg, rgba(5, 46, 22, 0.94) 0%, rgba(6, 78, 59, 0.90) 100%);
       border: 1px solid rgba(74, 222, 128, 0.55);
@@ -225,7 +215,7 @@
   <div class="topbar">
     <div>
       <div class="brand">KhaoPay</div>
-      <div class="sub">KPay • WavePay • KBZ Bank • QR</div>
+      <div class="sub">KPay • WavePay • QR Wallet</div>
     </div>
     <button id="logoutBtn" class="small-btn hidden" onclick="logout()">ထွက်ရန်</button>
   </div>
@@ -326,33 +316,17 @@
 
     <div id="sec-cashin" class="card">
       <h3>ငွေသွင်းရန် (Cash In)</h3>
-      <label>KPay / WavePay / KBZ Bank</label>
-      <select id="inChannel" onchange="updateCashInUi()">
+      <label>KPay / WavePay</label>
+      <select id="inChannel">
         <option value="KPAY">KBZPay (KPay)</option>
         <option value="WAVEPAY">WavePay</option>
-        <option value="KBZ_BANK">KBZ Bank</option>
       </select>
-
-      <div id="kbzDepositInfo" class="bank-box hidden">
-        <div><strong>KBZ Bank ငွေသွင်းအကောင့်</strong></div>
-        <div id="kbzAcctName">Account Name: -</div>
-        <div id="kbzAcctNo">Account No: -</div>
-        <div id="kbzNote" class="sub" style="margin-top:3px;"></div>
-      </div>
-
-      <div id="inKbzFields" class="hidden">
-        <label>ပေးပို့သူ KBZ ဘဏ်အကောင့်နံပါတ်</label>
-        <input id="inKbzAcctNo" placeholder="001xxxxxxxxxx" />
-        <label>ဘဏ်အကောင့်ပိုင်ရှင် အမည် (Optional)</label>
-        <input id="inKbzAcctName" placeholder="Account Holder Name" />
-      </div>
-
       <label>အကောင့် ဖုန်းနံပါတ်</label>
       <input id="inPhone" readonly />
       <label>ငွေပမာဏ (MMK)</label>
       <input id="inAmount" type="number" step="100" placeholder="10000" />
       <label>Transaction ID / Ref (Optional)</label>
-      <input id="inTxRef" placeholder="Txn ID / Bank Ref" />
+      <input id="inTxRef" placeholder="Txn ID" />
       <label>ငွေလွှဲပြေစာ ပုံ (Optional)</label>
       <input type="file" accept="image/*" onchange="readImg(this,'slip')" />
       <label>PIN (၆ လုံး)</label>
@@ -362,20 +336,11 @@
 
     <div id="sec-cashout" class="card hidden">
       <h3>ငွေထုတ်ရန် (Cash Out)</h3>
-      <label>KPay / WavePay / KBZ Bank</label>
-      <select id="outChannel" onchange="updateCashOutUi()">
+      <label>KPay / WavePay</label>
+      <select id="outChannel">
         <option value="KPAY">KBZPay (KPay)</option>
         <option value="WAVEPAY">WavePay</option>
-        <option value="KBZ_BANK">KBZ Bank</option>
       </select>
-
-      <div id="outKbzFields" class="hidden">
-        <label>လက်ခံမည့် KBZ ဘဏ်အကောင့်နံပါတ်</label>
-        <input id="outKbzAcctNo" placeholder="001xxxxxxxxxx" />
-        <label>KBZ ဘဏ်အကောင့်ပိုင်ရှင် အမည်</label>
-        <input id="outKbzAcctName" placeholder="Full Name on KBZ Account" />
-      </div>
-
       <label>အကောင့် ဖုန်းနံပါတ်</label>
       <input id="outPhone" readonly />
       <label>ငွေပမာဏ (MMK)</label>
@@ -461,7 +426,6 @@
 <script>
   const API_BASE = '';
   let THB_TO_MMK_RATE = 120;
-  let kbzBankInfo = { enabled: false, accountName: '', accountNumber: '', note: '' };
   const imgs = { front: '', back: '', selfie: '', slip: '' };
   let sessionData = null;
   let token = localStorage.getItem('khaopay_token') || '';
@@ -527,10 +491,6 @@
         THB_TO_MMK_RATE = Number(cfg.rate);
         updateSwapPreview();
       }
-      if (cfg && cfg.kbzBank) {
-        kbzBankInfo = cfg.kbzBank;
-        updateCashInUi();
-      }
     } catch (_) {}
   }
 
@@ -542,8 +502,6 @@
 
   async function init() {
     await loadConfig();
-    updateCashInUi();
-    updateCashOutUi();
     if (!token || !uid) return;
     try {
       await refreshSession();
@@ -605,27 +563,6 @@
       document.getElementById('sec-' + t).classList.toggle('hidden', t !== tab);
     });
     if (tab === 'swap') updateSwapPreview();
-    if (tab === 'cashin') updateCashInUi();
-    if (tab === 'cashout') updateCashOutUi();
-  }
-
-  function updateCashInUi() {
-    const ch = document.getElementById('inChannel').value;
-    const isKbz = ch === 'KBZ_BANK';
-    document.getElementById('inKbzFields').classList.toggle('hidden', !isKbz);
-    document.getElementById('kbzDepositInfo').classList.toggle('hidden', !isKbz);
-    if (isKbz) {
-      document.getElementById('kbzAcctName').textContent =
-        `Account Name: ${kbzBankInfo.accountName || 'Contact Admin'}`;
-      document.getElementById('kbzAcctNo').textContent =
-        `Account No: ${kbzBankInfo.accountNumber || 'Contact Admin'}`;
-      document.getElementById('kbzNote').textContent = kbzBankInfo.note || '';
-    }
-  }
-
-  function updateCashOutUi() {
-    const ch = document.getElementById('outChannel').value;
-    document.getElementById('outKbzFields').classList.toggle('hidden', ch !== 'KBZ_BANK');
   }
 
   function openMyQr() {
@@ -803,24 +740,20 @@
       const amount = Number(document.getElementById(isIn ? 'inAmount' : 'outAmount').value);
       const txRef = isIn ? document.getElementById('inTxRef').value.trim() : '';
       const pin = document.getElementById(isIn ? 'inPin' : 'outPin').value;
-
-      const payload = {
-        type,
-        channel,
-        targetPhone,
-        amount,
-        txRef,
-        slipImageUrl: isIn ? (imgs.slip || null) : null,
-        pin
-      };
-
-      if (channel === 'KBZ_BANK') {
-        payload.bankAccountNo = document.getElementById(isIn ? 'inKbzAcctNo' : 'outKbzAcctNo').value.trim();
-        payload.bankAccountName = document.getElementById(isIn ? 'inKbzAcctName' : 'outKbzAcctName').value.trim();
-      }
-
-      const endpoint = channel === 'KBZ_BANK' ? '/api/wallet/bank-cash' : '/api/wallet/direct-cash';
-      const d = await api(endpoint, 'POST', payload, { 'x-idempotency-key': idem('cash') });
+      const d = await api(
+        '/api/wallet/direct-cash',
+        'POST',
+        {
+          type,
+          channel,
+          targetPhone,
+          amount,
+          txRef,
+          slipImageUrl: isIn ? (imgs.slip || null) : null,
+          pin
+        },
+        { 'x-idempotency-key': idem('cash') }
+      );
       sessionData = d;
       document.getElementById(isIn ? 'inPin' : 'outPin').value = '';
       if (isIn) imgs.slip = '';
@@ -927,11 +860,8 @@
       html += '<h4 style="margin-top:12px;">Pending Cash In / Out</h4>';
       if (!cash.requests.length) html += '<div class="sub">မရှိပါ။</div>';
       cash.requests.forEach(r => {
-        const extraInfo = r.channel === 'KBZ_BANK'
-          ? ` • KBZ: ${escapeHtml(r.bank_account_no || '')} ${r.bank_account_name ? '(' + escapeHtml(r.bank_account_name) + ')' : ''}`
-          : '';
         html += `<div class="tx-item">
-          <div><strong>#${Number(r.id)} ${escapeHtml(r.req_type)}</strong> (${escapeHtml(r.channel)}${extraInfo}) • ${Number(r.amount).toLocaleString()} MMK</div>
+          <div><strong>#${Number(r.id)} ${escapeHtml(r.req_type)}</strong> (${escapeHtml(r.channel)}) • ${Number(r.amount).toLocaleString()} MMK</div>
           <div class="sub">${escapeHtml(r.phone_e164)} ${r.tx_ref ? '• Ref: ' + escapeHtml(r.tx_ref) : ''}</div>
           <div class="row" style="margin-top:6px;">
             <button class="submit-btn green" style="margin:0" onclick="reviewCash(${Number(r.id)},'APPROVED')">Approve</button>
